@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="0.3" cy="0.3" r="0.9">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="55%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#1e0a3a"/>
+    </radialGradient>
+    <radialGradient id="hl" cx="0.3" cy="0.3" r="0.4">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#050008"/>
+  <circle cx="256" cy="256" r="180" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="180" fill="url(#hl)"/>
+  <text x="256" y="296" text-anchor="middle"
+        font-family="-apple-system, SF Pro Display, sans-serif"
+        font-weight="800" font-size="120"
+        letter-spacing="-4"
+        fill="#ffffff">A</text>
+</svg>

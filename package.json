@@ -1,0 +1,26 @@
+{
+  "name": "aura",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "seed": "tsx src/data/seed.ts",
+    "reseed": "rm -f data/aura.db data/aura.db-wal data/aura.db-shm && tsx src/data/seed.ts",
+    "tick": "tsx src/cli/tick.ts",
+    "learn": "tsx src/twin/learn.ts",
+    "eval": "tsx src/eval/harness.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

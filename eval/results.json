@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-05-03T06:18:48.973Z",
+  "config": {
+    "days": 60,
+    "moments_per_day": 18,
+    "total_moments": 2460,
+    "ground_truth_useful": 318
+  },
+  "results": [
+    {
+      "strategy": "A. always_speak",
+      "notifications": 2460,
+      "counters": {
+        "tp": 318,
+        "fp": 2142,
+        "tn": 0,
+        "fn": 0
+      },
+      "per_day": 41,
+      "precision": 0.12926829268292683,
+      "recall": 1,
+      "f1": 0.22894168466522677,
+      "false_alarm_rate": 1,
+      "missed_help_rate": 0
+    },
+    {
+      "strategy": "B. never_speak",
+      "notifications": 0,
+      "counters": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 2142,
+        "fn": 318
+      },
+      "per_day": 0,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "false_alarm_rate": 0,
+      "missed_help_rate": 1
+    },
+    {
+      "strategy": "C. fixed_threshold",
+      "notifications": 713,
+      "counters": {
+        "tp": 216,
+        "fp": 497,
+        "tn": 1645,
+        "fn": 102
+      },
+      "per_day": 11.883333333333333,
+      "precision": 0.302945301542777,
+      "recall": 0.6792452830188679,
+      "f1": 0.4190106692531522,
+      "false_alarm_rate": 0.23202614379084968,
+      "missed_help_rate": 0.32075471698113206
+    },
+    {
+      "strategy": "D. prism_only",
+      "notifications": 371,
+      "counters": {
+        "tp": 162,
+        "fp": 209,
+        "tn": 1933,
+        "fn": 156
+      },
+      "per_day": 6.183333333333334,
+      "precision": 0.4366576819407008,
+      "recall": 0.5094339622641509,
+      "f1": 0.47024673439767783,
+      "false_alarm_rate": 0.09757236227824463,
+      "missed_help_rate": 0.49056603773584906
+    },
+    {
+      "strategy": "E. prism_calibrated",
+      "notifications": 371,
+      "counters": {
+        "tp": 162,
+        "fp": 209,
+        "tn": 1933,
+        "fn": 156
+      },
+      "per_day": 6.183333333333334,
+      "precision": 0.4366576819407008,
+      "recall": 0.5094339622641509,
+      "f1": 0.47024673439767783,
+      "false_alarm_rate": 0.09757236227824463,
+      "missed_help_rate": 0.49056603773584906
+    },
+    {
+      "strategy": "F. prism_full (+adversary)",
+      "notifications": 358,
+      "counters": {
+        "tp": 159,
+        "fp": 199,
+        "tn": 1943,
+        "fn": 159
+      },
+      "per_day": 5.966666666666667,
+      "precision": 0.4441340782122905,
+      "recall": 0.5,
+      "f1": 0.47041420118343197,
+      "false_alarm_rate": 0.09290382819794585,
+      "missed_help_rate": 0.5
+    }
+  ],
+  "headline": {
+    "vs_always_speak": {
+      "nudge_reduction_pct": 85.4,
+      "false_alarm_reduction_pct": 90.7,
+      "f1_improvement_pct": 105.5
+    },
+    "vs_fixed_threshold": {
+      "nudge_reduction_pct": 49.8,
+      "false_alarm_reduction_pct": 60,
+      "f1_improvement_pct": 12.3
+    },
+    "vs_prism_only": {
+      "nudge_reduction_pct": 3.5,
+      "false_alarm_reduction_pct": 4.8
+    }
+  }
+}

@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0b0014" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <title>AURA</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        height: 100%;
+        background: #050008;
+        color: #f0e6ff;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      body {
+        background:
+          radial-gradient(ellipse at 50% 0%, #2d0a4e 0%, transparent 60%),
+          radial-gradient(ellipse at 30% 100%, #4a1a7a 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 80%, #1a0a3a 0%, transparent 50%),
+          #050008;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 4px 0;
+        gap: 12px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.4em;
+        color: #c9a8ff;
+      }
+      .lang-picker {
+        display: flex;
+        gap: 4px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        padding: 3px;
+        border-radius: 999px;
+        backdrop-filter: blur(20px);
+      }
+      .lang-picker button {
+        background: transparent;
+        border: none;
+        color: rgba(245, 233, 255, 0.55);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-family: inherit;
+        letter-spacing: 0.05em;
+      }
+      .lang-picker button.active {
+        background: rgba(168, 85, 247, 0.3);
+        color: #fff;
+      }
+      .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 12px #4ade80;
+        animation: breathe 2.4s ease-in-out infinite;
+        flex-shrink: 0;
+      }
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.4); opacity: 1; }
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        gap: 28px;
+        padding: 24px 0;
+      }
+
+      .orb-wrap { position: relative; cursor: pointer; }
+      .orb {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5) 0%, transparent 40%),
+          radial-gradient(circle at 70% 70%, #c084fc 0%, #6b21a8 60%, #2e0a52 100%);
+        box-shadow:
+          0 0 80px rgba(168, 85, 247, 0.5),
+          0 0 160px rgba(168, 85, 247, 0.25),
+          inset 0 0 60px rgba(255, 255, 255, 0.1);
+        animation: float 6s ease-in-out infinite;
+      }
+      .orb.speaking { animation: float 6s ease-in-out infinite, pulse 0.8s ease-in-out infinite; }
+      .orb.listening { animation: float 6s ease-in-out infinite, pulseRed 1s ease-in-out infinite; }
+      @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 80px rgba(168,85,247,0.5), 0 0 160px rgba(168,85,247,0.25), inset 0 0 60px rgba(255,255,255,0.1); }
+        50% { box-shadow: 0 0 120px rgba(168,85,247,0.9), 0 0 220px rgba(168,85,247,0.5), inset 0 0 80px rgba(255,255,255,0.2); }
+      }
+      @keyframes pulseRed {
+        0%, 100% { box-shadow: 0 0 80px rgba(239,68,68,0.5), 0 0 160px rgba(239,68,68,0.25), inset 0 0 60px rgba(255,255,255,0.1); }
+        50% { box-shadow: 0 0 140px rgba(239,68,68,0.9), 0 0 240px rgba(239,68,68,0.5), inset 0 0 80px rgba(255,255,255,0.2); }
+      }
+
+      .last-message {
+        max-width: 540px;
+        font-size: 20px;
+        line-height: 1.45;
+        font-weight: 500;
+        color: #f5e9ff;
+        padding: 0 8px;
+        min-height: 70px;
+      }
+      .last-message.empty {
+        color: rgba(245, 233, 255, 0.45);
+        font-style: italic;
+        font-weight: 400;
+      }
+      .transcript {
+        font-size: 13px;
+        color: rgba(245, 233, 255, 0.5);
+        font-style: italic;
+        min-height: 18px;
+      }
+      .meta-row {
+        display: flex;
+        gap: 20px;
+        font-size: 11px;
+        color: rgba(245, 233, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+      }
+      .meta-row strong {
+        display: block;
+        font-size: 14px;
+        color: #f5e9ff;
+        text-transform: none;
+        letter-spacing: 0;
+        margin-top: 4px;
+        font-weight: 600;
+      }
+      .quiet-banner {
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        display: none;
+      }
+      .quiet-banner.show { display: block; }
+
+      .demo-banner {
+        margin: 10px auto 6px;
+        max-width: 540px;
+        background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(236,72,153,0.15));
+        border: 1px solid rgba(245,158,11,0.3);
+        color: #fde68a;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 12px;
+        text-align: center;
+        display: none;
+      }
+      .demo-banner.show { display: block; }
+      .demo-banner .phase {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        opacity: 0.7;
+      }
+      .demo-banner .progress {
+        margin-top: 6px;
+        height: 3px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .demo-banner .progress div {
+        height: 100%;
+        background: linear-gradient(90deg, #f59e0b, #ec4899);
+        transition: width 0.4s ease;
+      }
+
+      .icon-btn {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #c9a8ff;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        font-size: 16px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 0, 16, 0.78);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        padding: 20px;
+      }
+      .overlay.show { display: flex; }
+      .modal {
+        width: 100%;
+        max-width: 380px;
+        background: linear-gradient(180deg, #1a0a36, #0b0b14);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 22px;
+        padding: 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: 0 20px 60px rgba(168,85,247,0.25);
+      }
+      .modal h2 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        background: linear-gradient(135deg, #fff, #c9a8ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .modal .sub {
+        font-size: 12px;
+        color: rgba(245,233,255,0.55);
+        margin-bottom: 8px;
+      }
+      .modal label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(245,233,255,0.55);
+        margin-top: 6px;
+      }
+      .modal input[type="text"], .modal input[type="time"] {
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: #f5e9ff;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-family: inherit;
+        width: 100%;
+      }
+      .modal .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .modal .row input { flex: 1; }
+      .modal .full { width: 100%; margin-top: 4px; }
+      .modal .lang-picker { background: rgba(255,255,255,0.04); }
+      .modal .lang-picker button { font-size: 12px; padding: 6px 10px; }
+
+      footer {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0 16px;
+        flex-wrap: wrap;
+      }
+      button {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #f5e9ff;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 12px 18px;
+        border-radius: 999px;
+        cursor: pointer;
+        backdrop-filter: blur(20px);
+        transition: all 0.15s ease;
+      }
+      button:active { transform: scale(0.96); }
+      button.primary {
+        background: linear-gradient(135deg, #a855f7, #6366f1);
+        border-color: transparent;
+        box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+      }
+      button.mic {
+        width: 64px;
+        height: 64px;
+        padding: 0;
+        font-size: 26px;
+        background: linear-gradient(135deg, #ec4899, #a855f7);
+        border-color: transparent;
+        box-shadow: 0 6px 24px rgba(236, 72, 153, 0.45);
+      }
+      button.mic.listening {
+        background: linear-gradient(135deg, #ef4444, #f59e0b);
+        animation: pulseBtn 1s ease-in-out infinite;
+      }
+      @keyframes pulseBtn {
+        0%, 100% { box-shadow: 0 6px 24px rgba(239, 68, 68, 0.45); }
+        50% { box-shadow: 0 6px 36px rgba(239, 68, 68, 0.9); }
+      }
+      button.muted {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+      }
+
+      #status {
+        font-size: 11px;
+        color: rgba(245, 233, 255, 0.45);
+        text-align: center;
+        min-height: 16px;
+        padding-bottom: 4px;
+      }
+      .dev-link {
+        position: absolute;
+        bottom: 8px;
+        right: 12px;
+        font-size: 10px;
+        color: rgba(245, 233, 255, 0.3);
+        text-decoration: none;
+        letter-spacing: 0.1em;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="brand">AURA</span>
+      <div class="lang-picker" id="lang-picker">
+        <button data-lang="en" class="active">EN</button>
+        <button data-lang="hi">हिं</button>
+        <button data-lang="kn">ಕ</button>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="settings">⚙︎</button>
+      <span class="status-dot" id="dot" title="watching"></span>
+    </header>
+
+    <!-- Onboarding modal -->
+    <div id="onboard-overlay" class="overlay">
+      <div class="modal">
+        <h2>Welcome to AURA</h2>
+        <p class="sub">Three quick things and we're done.</p>
+        <label>Your name (optional)</label>
+        <input id="ob-name" type="text" placeholder="e.g. Anagha" />
+        <label>Preferred language</label>
+        <div class="lang-picker" id="ob-lang">
+          <button data-lang="en" class="active">English</button>
+          <button data-lang="hi">हिन्दी</button>
+          <button data-lang="kn">ಕನ್ನಡ</button>
+        </div>
+        <label>Quiet hours</label>
+        <div class="row">
+          <input id="ob-q-start" type="time" value="22:00" />
+          <span class="sub">to</span>
+          <input id="ob-q-end" type="time" value="06:30" />
+        </div>
+        <button id="ob-done" class="primary full">Let's go</button>
+        <button id="ob-skip" class="ghost full">Skip for now</button>
+      </div>
+    </div>
+
+    <!-- Settings drawer -->
+    <div id="settings-overlay" class="overlay">
+      <div class="modal">
+        <h2>Settings</h2>
+        <label>Your name</label>
+        <input id="set-name" type="text" />
+        <label>Language</label>
+        <div class="lang-picker" id="set-lang">
+          <button data-lang="en">English</button>
+          <button data-lang="hi">हिन्दी</button>
+          <button data-lang="kn">ಕನ್ನಡ</button>
+        </div>
+        <label>Quiet hours</label>
+        <div class="row">
+          <input id="set-q-start" type="time" />
+          <span class="sub">to</span>
+          <input id="set-q-end" type="time" />
+        </div>
+        <label>City (for weather)</label>
+        <input id="set-city" type="text" placeholder="e.g. Bangalore" />
+        <button id="set-save" class="primary full">Save</button>
+        <button id="set-close" class="ghost full">Close</button>
+      </div>
+    </div>
+
+    <main>
+      <div class="orb-wrap"><div class="orb" id="orb"></div></div>
+      <div class="last-message empty" id="msg">Tap the mic and ask anything. Or wait — I'll speak first when it matters.</div>
+      <div class="transcript" id="transcript"></div>
+      <div class="meta-row">
+        <div>NEXT<strong id="next">—</strong></div>
+        <div>LAST SPOKE<strong id="ago">—</strong></div>
+      </div>
+      <div class="quiet-banner" id="quiet"></div>
+    </main>
+
+    <div id="demo-banner" class="demo-banner"></div>
+    <div id="status"></div>
+    <footer>
+      <button id="demo-btn" class="primary" style="background:linear-gradient(135deg,#f59e0b,#ec4899);">🎭 AURA demos herself</button>
+      <button id="speak-btn">Brief me</button>
+      <button class="mic" id="mic-btn" title="Tap to talk">🎤</button>
+      <button id="wake-btn">👂 Hey AURA: off</button>
+      <button id="test-btn">🔈 test</button>
+      <button id="mute-btn">🔊 voice on</button>
+    </footer>
+
+    <a href="/" class="dev-link">dev view →</a>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const j = (u) => fetch(u).then((r) => r.json());
+      const jp = (u, b) => fetch(u, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b ?? {}) }).then((r) => r.json());
+
+      let voiceMuted = false;
+      let chosenVoice = null;
+      let lang = "en";
+      const setStatus = (s) => ($("#status").textContent = s);
+
+      const VOICE_PREFERENCES = {
+        en: ["Ava (Premium)", "Allison (Premium)", "Samantha (Premium)", "Ava", "Allison", "Samantha", "Susan", "Karen", "Tessa", "Victoria", "Google UK English Female", "Microsoft Aria"],
+        hi: ["Lekha (Enhanced)", "Lekha", "Google हिन्दी", "Microsoft Swara", "Microsoft Kalpana"],
+        kn: ["Google ಕನ್ನಡ", "Microsoft Sapna", "Lekha"],
+      };
+
+      function pickVoice(forLang) {
+        const voices = speechSynthesis.getVoices();
+        if (!voices.length) return null;
+        const langCode = { en: "en", hi: "hi", kn: "kn" }[forLang] ?? "en";
+        const prefs = VOICE_PREFERENCES[forLang] ?? VOICE_PREFERENCES.en;
+        for (const want of prefs) {
+          const v = voices.find((x) => x.name === want || x.name.includes(want));
+          if (v) return v;
+        }
+        // Same-language fallback
+        const sameLang = voices.find((v) => v.lang.startsWith(langCode));
+        if (sameLang) return sameLang;
+        // Female-hint fallback
+        const female = voices.find((v) => /female|samantha|ava|allison|karen|tessa|victoria|susan|moira|lekha|jenny|aria|zira|sonia|libby|sapna|swara|kalpana/i.test(v.name));
+        return female ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
+      }
+
+      if ("speechSynthesis" in window) {
+        speechSynthesis.onvoiceschanged = () => {
+          chosenVoice = pickVoice(lang);
+          if (chosenVoice) setStatus("voice: " + chosenVoice.name);
+          setTimeout(() => setStatus(""), 2500);
+        };
+      }
+
+      function speakLocal(text) {
+        if (voiceMuted) { setStatus("muted — click 🔇 to unmute"); return false; }
+        if (!("speechSynthesis" in window)) { setStatus("no speech support"); return false; }
+        const u = new SpeechSynthesisUtterance(text);
+        if (!chosenVoice) chosenVoice = pickVoice(lang);
+        if (chosenVoice) u.voice = chosenVoice;
+        u.lang = { en: "en-US", hi: "hi-IN", kn: "kn-IN" }[lang] ?? "en-US";
+        u.rate = 0.95;   // slower = warmer
+        u.pitch = 1.15;  // higher = sweeter
+        u.volume = 1.0;
+        u.onstart = () => { $("#orb").classList.add("speaking"); setStatus("speaking…"); };
+        u.onend = () => { $("#orb").classList.remove("speaking"); setStatus(""); };
+        u.onerror = (e) => { $("#orb").classList.remove("speaking"); setStatus("speech error: " + (e.error || "?") + " — check Mac volume + tab not muted"); };
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+        return true;
+      }
+
+      function ago(iso) {
+        if (!iso) return "—";
+        const sec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+        if (sec < 60) return `${sec}s ago`;
+        if (sec < 3600) return `${Math.round(sec / 60)}m ago`;
+        return `${Math.round(sec / 3600)}h ago`;
+      }
+      function fmtNext(min, title) {
+        if (min === null || min === undefined) return "—";
+        if (min < 0) return `${title} (started)`;
+        if (min < 60) return `${title} in ${min}m`;
+        return `${title} @ ${Math.round(min / 60)}h`;
+      }
+
+      async function refresh() {
+        const [d, q] = await Promise.all([j("/api/last"), j("/api/quiet").catch(() => ({ active: false }))]);
+        if (d.last_message) {
+          $("#msg").classList.remove("empty");
+          $("#msg").textContent = "“" + d.last_message.text + "”";
+          $("#ago").textContent = ago(d.last_message.ts);
+        }
+        $("#next").textContent = d.next_event
+          ? fmtNext(d.next_event.min_until, d.next_event.title)
+          : "nothing soon";
+        if (d.voice_enabled === false) voiceMuted = true;
+        const muteBtn = $("#mute-btn");
+        if (!voiceMuted) { muteBtn.textContent = "🔊 voice on"; muteBtn.classList.remove("muted"); }
+        else { muteBtn.textContent = "🔇 muted"; muteBtn.classList.add("muted"); }
+        if (q.active) {
+          const until = new Date(q.until);
+          const left = Math.max(0, Math.round((until - new Date()) / 60000));
+          $("#quiet").textContent = `🔕 quiet for ${left} more min — only critical alerts`;
+          $("#quiet").classList.add("show");
+        } else {
+          $("#quiet").classList.remove("show");
+        }
+      }
+
+      // ---------- Brief button ----------
+      $("#speak-btn").onclick = async () => {
+        speakLocal({ en: "Let me check.", hi: "ज़रा देखती हूँ।", kn: "ನೋಡುತ್ತೇನೆ." }[lang] ?? "Let me check.");
+        const r = await jp("/api/run/morning_brief", { dry_run: false, lang });
+        const text = r.message?.text ?? { en: "Nothing pressing right now.", hi: "अभी कुछ ज़रूरी नहीं।", kn: "ಈಗ ಏನೂ ಪ್ರಮುಖವಲ್ಲ." }[lang];
+        $("#msg").classList.remove("empty");
+        $("#msg").textContent = "“" + text + "”";
+        $("#ago").textContent = "just now";
+        speakLocal(text);
+      };
+
+      // ---------- Test sound ----------
+      $("#test-btn").onclick = () => {
+        const samples = {
+          en: "Hello. AURA voice check. If you hear me, your speakers and browser are working.",
+          hi: "नमस्ते। मैं AURA हूँ। अगर आप मुझे सुन सकते हैं, तो सब ठीक है।",
+          kn: "ನಮಸ್ಕಾರ. ನಾನು AURA. ನೀವು ನನ್ನನ್ನು ಕೇಳಿದರೆ, ಎಲ್ಲವೂ ಸರಿಯಿದೆ.",
+        };
+        const ok = speakLocal(samples[lang]);
+        if (ok) setStatus("if no sound: turn up Mac volume + click the speaker icon next to the tab title");
+      };
+
+      // ---------- Mute ----------
+      $("#mute-btn").onclick = async () => {
+        voiceMuted = !voiceMuted;
+        if (voiceMuted) { speechSynthesis.cancel(); setStatus("muted"); }
+        else { setStatus("voice on"); }
+        await jp("/api/voice", { enabled: !voiceMuted });
+        await refresh();
+      };
+
+      // ---------- Language picker ----------
+      $("#lang-picker").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-lang]");
+        if (!b) return;
+        document.querySelectorAll(".lang-picker button").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+        lang = b.dataset.lang;
+        chosenVoice = pickVoice(lang);
+        setStatus(chosenVoice ? "voice: " + chosenVoice.name : "no voice for " + lang);
+        setTimeout(() => setStatus(""), 2500);
+      });
+
+      // ---------- Mic — Web Speech Recognition (push-to-talk + wake word) ----------
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let pttRecognition = null;   // for the explicit mic button
+      let wakeRecognition = null;  // continuous wake-word listener
+      let pttListening = false;
+      let wakeOn = false;
+      const WAKE_PHRASES = ["hey aura", "okay aura", "ok aura", "hi aura", "hello aura", "aura"];
+
+      function makeRecognition(continuous, onResult, onEnd, onError) {
+        if (!SR) return null;
+        const r = new SR();
+        r.continuous = continuous;
+        r.interimResults = true;
+        r.maxAlternatives = 1;
+        r.lang = { en: "en-US", hi: "hi-IN", kn: "kn-IN" }[lang] ?? "en-US";
+        r.onresult = onResult;
+        r.onend = onEnd;
+        r.onerror = onError;
+        return r;
+      }
+
+      async function handleCommand(text) {
+        const t = text.trim();
+        if (!t) return;
+        $("#transcript").textContent = t;
+        setStatus("thinking…");
+        try {
+          const r = await jp("/api/say", { transcript: t, lang });
+          $("#msg").classList.remove("empty");
+          $("#msg").textContent = "“" + r.reply + "”";
+          $("#ago").textContent = "just now";
+          speakLocal(r.reply);
+        } catch (e) {
+          setStatus("error: " + e.message);
+        }
+      }
+
+      // ---- Push-to-talk via mic button ----
+      function startPtt() {
+        if (!SR) { setStatus("this browser has no voice input — try Chrome or Safari"); return; }
+        if (pttListening) return;
+        pttRecognition = makeRecognition(
+          false,
+          (e) => {
+            let interim = "", final = "";
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              const t = e.results[i][0].transcript;
+              if (e.results[i].isFinal) final += t; else interim += t;
+            }
+            $("#transcript").textContent = (final || interim).trim();
+          },
+          async () => {
+            pttListening = false;
+            $("#mic-btn").classList.remove("listening");
+            $("#orb").classList.remove("listening");
+            const t = $("#transcript").textContent.trim();
+            if (!t) { setStatus("didn't catch anything"); return; }
+            await handleCommand(t);
+            // After PTT, restart wake listener if it was on (PTT pauses it).
+            if (wakeOn) startWake();
+          },
+          (e) => {
+            pttListening = false;
+            $("#mic-btn").classList.remove("listening");
+            $("#orb").classList.remove("listening");
+            setStatus("mic error: " + e.error);
+          },
+        );
+        try {
+          // PTT and wake can't both run on the same mic — pause wake.
+          stopWake(true);
+          pttRecognition.start();
+          pttListening = true;
+          $("#mic-btn").classList.add("listening");
+          $("#orb").classList.add("listening");
+          setStatus("listening… (tap mic again to stop)");
+        } catch (e) {
+          setStatus("mic start failed: " + e.message);
+        }
+      }
+
+      $("#mic-btn").onclick = () => {
+        if (pttListening) { pttRecognition.stop(); return; }
+        $("#transcript").textContent = "";
+        startPtt();
+      };
+
+      // ---- Wake-word continuous listening ----
+      let wakeRestartTimer = null;
+      let pauseRestart = false;
+
+      function detectWake(text) {
+        const lower = text.toLowerCase().trim();
+        for (const phrase of WAKE_PHRASES) {
+          const idx = lower.indexOf(phrase);
+          if (idx >= 0) {
+            const after = lower.slice(idx + phrase.length).trim();
+            if (after.length >= 2) return after;       // wake + command in one breath
+            return "__WAKE_ONLY__";                    // wake, then wait for command
+          }
+        }
+        return null;
+      }
+
+      function startWake() {
+        if (!SR) { setStatus("wake word needs Chrome or Safari"); return; }
+        if (pauseRestart) return;
+        if (wakeRecognition) { try { wakeRecognition.abort(); } catch {} }
+        wakeRecognition = makeRecognition(
+          true,
+          (e) => {
+            let final = "";
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              if (e.results[i].isFinal) final += e.results[i][0].transcript;
+            }
+            if (!final) return;
+            const after = detectWake(final);
+            if (!after) return;
+            // Wake detected — stop wake recognition, briefly chirp, capture next utterance.
+            try { wakeRecognition.abort(); } catch {}
+            $("#orb").classList.add("listening");
+            setStatus("yes?");
+            speakLocal({ en: "Yes?", hi: "जी?", kn: "ಹೇಳಿ?" }[lang] ?? "Yes?");
+            if (after !== "__WAKE_ONLY__") {
+              // user said "hey aura, what time is it" — handle the command part now
+              handleCommand(after).then(() => { if (wakeOn) setTimeout(startWake, 1000); });
+            } else {
+              // wait for a follow-up utterance via PTT-style capture
+              setTimeout(() => startPtt(), 600);
+            }
+          },
+          () => {
+            // Auto-restart unless user toggled off.
+            $("#orb").classList.remove("listening");
+            if (wakeOn && !pttListening && !pauseRestart) {
+              clearTimeout(wakeRestartTimer);
+              wakeRestartTimer = setTimeout(startWake, 800);
+            }
+          },
+          (e) => {
+            // Common: "no-speech" — just keep restarting silently.
+            if (e.error === "not-allowed") {
+              wakeOn = false;
+              $("#wake-btn").textContent = "👂 Hey AURA: off (mic blocked)";
+              setStatus("microphone permission denied");
+              return;
+            }
+            // "aborted" / "no-speech" → fine, restart.
+            if (wakeOn && !pttListening && !pauseRestart) {
+              clearTimeout(wakeRestartTimer);
+              wakeRestartTimer = setTimeout(startWake, 1200);
+            }
+          },
+        );
+        try {
+          wakeRecognition.start();
+        } catch {
+          // already started; restart soon
+          if (wakeOn && !pauseRestart) {
+            clearTimeout(wakeRestartTimer);
+            wakeRestartTimer = setTimeout(startWake, 1500);
+          }
+        }
+      }
+
+      function stopWake(temporary) {
+        clearTimeout(wakeRestartTimer);
+        pauseRestart = !!temporary;
+        if (wakeRecognition) { try { wakeRecognition.abort(); } catch {} }
+        if (!temporary) {
+          wakeOn = false;
+          $("#wake-btn").textContent = "👂 Hey AURA: off";
+          $("#wake-btn").classList.remove("primary");
+        }
+      }
+
+      $("#wake-btn").onclick = () => {
+        if (wakeOn) {
+          stopWake(false);
+          setStatus("wake word off");
+        } else {
+          wakeOn = true;
+          pauseRestart = false;
+          $("#wake-btn").textContent = "👂 Hey AURA: ON";
+          $("#wake-btn").classList.add("primary");
+          setStatus("say 'Hey AURA' followed by your command");
+          startWake();
+        }
+      };
+
+      // ---------- Auto-demo (AURA narrates herself) ----------
+      let demoPollTimer = null;
+      let demoSpokenAt = -1;
+
+      async function pollDemo() {
+        try {
+          const s = await j("/api/demo/state");
+          const banner = $("#demo-banner");
+          if (s.running) {
+            banner.classList.add("show");
+            const pct = s.total_steps > 0 ? Math.round(((s.step_index + 1) / s.total_steps) * 100) : 0;
+            banner.innerHTML = `
+              <div class="phase">${s.phase || "running"}</div>
+              <div>step ${s.step_index + 1} of ${s.total_steps}${s.highlight_label ? ` — ${s.highlight_label}` : ""}</div>
+              <div class="progress"><div style="width:${pct}%"></div></div>
+            `;
+            // When the demo records narration, /api/last picks it up. Trigger a refresh
+            // so the orb pulses and the message updates without waiting for the 4s loop.
+            const last = await j("/api/last");
+            if (last.last_message) {
+              const ts = new Date(last.last_message.ts).getTime();
+              if (ts > demoSpokenAt) {
+                demoSpokenAt = ts;
+                $("#msg").classList.remove("empty");
+                $("#msg").textContent = "“" + last.last_message.text + "”";
+                $("#ago").textContent = "just now";
+                // Browser TTS too — the laptop voice already played server-side, but this
+                // mirrors it for anyone watching from a phone on the same WiFi.
+                speakLocal(last.last_message.text);
+              }
+            }
+          } else {
+            if (s.finished_at) {
+              banner.innerHTML = `<div class="phase">demo complete</div><div>tap again or use the mic</div>`;
+              setTimeout(() => banner.classList.remove("show"), 4000);
+            } else {
+              banner.classList.remove("show");
+            }
+            clearInterval(demoPollTimer);
+            demoPollTimer = null;
+            $("#demo-btn").textContent = "🎭 AURA demos herself";
+          }
+        } catch (e) {
+          console.warn("demo poll failed", e);
+        }
+      }
+
+      $("#demo-btn").onclick = async () => {
+        const cur = await j("/api/demo/state");
+        if (cur.running) {
+          await jp("/api/demo/stop");
+          $("#demo-btn").textContent = "🎭 AURA demos herself";
+          return;
+        }
+        // Pause wake word during the demo so AURA's narration doesn't trigger her own mic.
+        if (wakeOn) { stopWake(true); }
+        // Mute browser TTS during the demo — the macOS `say` channel handles narration so
+        // they don't echo over each other. (We re-enable browser TTS for any post-demo speak.)
+        const wasMuted = voiceMuted;
+        voiceMuted = true;
+        $("#demo-btn").textContent = "■ stop demo";
+        demoSpokenAt = Date.now();
+        await jp("/api/demo/start");
+        if (demoPollTimer) clearInterval(demoPollTimer);
+        demoPollTimer = setInterval(async () => {
+          await pollDemo();
+          // When demo ends, restore voice state.
+          const s = await j("/api/demo/state");
+          if (!s.running && demoPollTimer === null) {
+            voiceMuted = wasMuted;
+            if (wakeOn) startWake();
+          }
+        }, 800);
+      };
+
+      // ---------- Onboarding + Settings ----------
+      function setLangPickerActive(rootSel, value) {
+        document.querySelectorAll(`${rootSel} button[data-lang]`).forEach((b) => {
+          b.classList.toggle("active", b.dataset.lang === value);
+        });
+      }
+      function bindLangPicker(rootSel, onChange) {
+        document.querySelector(rootSel).addEventListener("click", (e) => {
+          const b = e.target.closest("button[data-lang]");
+          if (!b) return;
+          setLangPickerActive(rootSel, b.dataset.lang);
+          onChange(b.dataset.lang);
+        });
+      }
+
+      let onboardLang = "en";
+      bindLangPicker("#ob-lang", (v) => (onboardLang = v));
+
+      let settingsLang = "en";
+      bindLangPicker("#set-lang", (v) => (settingsLang = v));
+
+      async function checkOnboarding() {
+        const s = await j("/api/settings");
+        if (s.onboarded !== "1") {
+          $("#onboard-overlay").classList.add("show");
+        } else if (s.user_name) {
+          // Personal greeting once per session
+          const greeting = {
+            en: `Welcome back, ${s.user_name}.`,
+            hi: `वापसी पर स्वागत है, ${s.user_name}।`,
+            kn: `ಮತ್ತೆ ಸ್ವಾಗತ, ${s.user_name}.`,
+          }[s.preferred_lang] ?? `Welcome back, ${s.user_name}.`;
+          // Prepopulate global lang from saved preference
+          if (s.preferred_lang) {
+            lang = s.preferred_lang;
+            setLangPickerActive("#lang-picker", lang);
+          }
+          // Don't auto-speak greeting on every refresh — only once per page load.
+          if (!sessionStorage.getItem("aura-greeted")) {
+            sessionStorage.setItem("aura-greeted", "1");
+            // Wait briefly so voices have loaded.
+            setTimeout(() => speakLocal(greeting), 1200);
+          }
+        }
+      }
+
+      $("#ob-done").onclick = async () => {
+        const name = $("#ob-name").value.trim();
+        const qs = $("#ob-q-start").value;
+        const qe = $("#ob-q-end").value;
+        await jp("/api/settings", {
+          user_name: name,
+          preferred_lang: onboardLang,
+          quiet_start: qs,
+          quiet_end: qe,
+          onboarded: "1",
+        });
+        lang = onboardLang;
+        setLangPickerActive("#lang-picker", lang);
+        $("#onboard-overlay").classList.remove("show");
+        const greeting = {
+          en: name ? `Nice to meet you, ${name}. I'll be watching the day.` : "Nice to meet you. I'll be watching the day.",
+          hi: name ? `${name}, आपसे मिलकर अच्छा लगा। मैं दिन पर नज़र रखूँगी।` : "आपसे मिलकर अच्छा लगा।",
+          kn: name ? `${name}, ನಿಮ್ಮನ್ನು ಭೇಟಿಯಾಗಿ ಸಂತೋಷ. ನಾನು ದಿನವನ್ನು ಗಮನಿಸುತ್ತೇನೆ.` : "ನಿಮ್ಮನ್ನು ಭೇಟಿಯಾಗಿ ಸಂತೋಷ.",
+        }[lang];
+        sessionStorage.setItem("aura-greeted", "1");
+        speakLocal(greeting);
+      };
+
+      $("#ob-skip").onclick = async () => {
+        await jp("/api/settings", { onboarded: "1" });
+        $("#onboard-overlay").classList.remove("show");
+      };
+
+      $("#settings-btn").onclick = async () => {
+        const s = await j("/api/settings");
+        $("#set-name").value = s.user_name || "";
+        settingsLang = s.preferred_lang || "en";
+        setLangPickerActive("#set-lang", settingsLang);
+        $("#set-q-start").value = s.quiet_start || "22:00";
+        $("#set-q-end").value = s.quiet_end || "06:30";
+        $("#set-city").value = s.city || "";
+        $("#settings-overlay").classList.add("show");
+      };
+
+      $("#set-save").onclick = async () => {
+        await jp("/api/settings", {
+          user_name: $("#set-name").value.trim(),
+          preferred_lang: settingsLang,
+          quiet_start: $("#set-q-start").value,
+          quiet_end: $("#set-q-end").value,
+          city: $("#set-city").value.trim(),
+        });
+        lang = settingsLang;
+        setLangPickerActive("#lang-picker", lang);
+        $("#settings-overlay").classList.remove("show");
+        setStatus("settings saved");
+        setTimeout(() => setStatus(""), 2000);
+      };
+
+      $("#set-close").onclick = () => $("#settings-overlay").classList.remove("show");
+
+      checkOnboarding();
+
+      refresh();
+      setInterval(refresh, 4000);
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      }
+    </script>
+  </body>
+</html>

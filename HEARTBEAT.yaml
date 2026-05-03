@@ -1,0 +1,65 @@
+# HEARTBEAT — when AURA acts.
+# The scheduler reads this on every tick. Edit to change cadence.
+
+ticks:
+  - id: morning_brief
+    skill: morning_brief
+    when: "06:30-09:00"
+    cadence: once_per_day
+    description: "Daily morning brief with score + agenda"
+
+  - id: score_refresh
+    skill: morning_brief
+    when: "*"
+    cadence: every_5_min
+    dry_run: true
+    description: "Recompute CRS so the dashboard stays live (no notification)"
+
+  - id: meeting_reminder
+    skill: meeting_reminder
+    when: "*"
+    cadence: every_minute
+    description: "Speak up ~5-10 min before any meeting"
+
+  - id: commute_morning
+    skill: commute_guardian
+    when: "07:00-09:30"
+    cadence: every_5_min
+    description: "Watch next event vs. weather/baseline; nudge if leaving late"
+
+  - id: commute_evening
+    skill: commute_guardian
+    when: "17:00-19:00"
+    cadence: every_5_min
+    description: "Evening commute window"
+
+  - id: hydration
+    skill: hydration_reminder
+    when: "09:00-18:00"
+    cadence: every_5_min
+    description: "Gentle nudge to drink water during work hours"
+
+  - id: standup_break
+    skill: standup_break
+    when: "10:00-17:00"
+    cadence: every_5_min
+    description: "Suggest a stand-up break if user has been sedentary"
+
+  - id: eod_wrap
+    skill: eod_wrap
+    when: "17:00-19:00"
+    cadence: once_per_day
+    description: "End-of-day wrap-up"
+
+  - id: wind_down
+    skill: wind_down
+    when: "21:30-23:00"
+    cadence: once_per_day
+    description: "Wind-down nudge before bed"
+
+  - id: twin_relearn
+    skill: twin_learn
+    when: "*"
+    cadence: every_5_min
+    dry_run: true
+    description: "Recompute TWIN patterns from event history"

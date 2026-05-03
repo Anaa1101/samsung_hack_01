@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AURA · Day-Readiness</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="phone">
+      <header class="status-bar">
+        <span id="time">--:--</span>
+        <span class="brand">AURA</span>
+        <span id="dot" class="dot"></span>
+      </header>
+
+      <main>
+        <section class="gauge-card">
+          <div class="gauge">
+            <svg viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="86" stroke="#1a1a2e" stroke-width="14" fill="none" />
+              <circle
+                id="ring"
+                cx="100"
+                cy="100"
+                r="86"
+                stroke="url(#g)"
+                stroke-width="14"
+                fill="none"
+                stroke-linecap="round"
+                stroke-dasharray="540"
+                stroke-dashoffset="540"
+                transform="rotate(-90 100 100)"
+              />
+              <defs>
+                <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#22d3ee" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="gauge-text">
+              <div class="num" id="score">--</div>
+              <div class="label">Day-Readiness</div>
+            </div>
+          </div>
+          <div id="next-event" class="next-event"></div>
+        </section>
+
+        <section class="components" id="components"></section>
+
+        <section class="actions">
+          <button id="run-btn">Run Morning Brief</button>
+          <button id="commute-btn">Run Commute Guardian</button>
+          <button id="dry-btn" class="ghost">Refresh score</button>
+          <button id="gate-btn" class="ghost">Test PRISM gate</button>
+        </section>
+
+        <section class="panel">
+          <h3>PRISM gate decision</h3>
+          <pre id="gate"></pre>
+        </section>
+
+        <section class="panel">
+          <h3>TWIN — learned patterns <button id="learn-btn" class="inline">re-learn</button></h3>
+          <div id="twin"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Commute snapshot</h3>
+          <div id="commute" class="message">—</div>
+        </section>
+
+        <section class="panel">
+          <h3>Recent skill runs <span class="meta" id="skill-runs-meta"></span></h3>
+          <ul id="skill-runs"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>Calendar (drag-add to test)</h3>
+          <ul id="calendar"></ul>
+          <form id="add-event">
+            <input type="text" id="ev-title" placeholder="event title" required />
+            <input type="number" id="ev-min" placeholder="in minutes" min="-60" required />
+            <button type="submit">add</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h3>Audit log <span id="chain-status" class="ok">verifying...</span></h3>
+          <ul id="audit"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>Last message</h3>
+          <div id="message" class="message">—</div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

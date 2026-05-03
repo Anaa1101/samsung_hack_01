@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0014" />
+    <title>AURA · Activity</title>
+    <link rel="icon" href="/icon.svg" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background:
+          radial-gradient(ellipse at 50% 0%, #2d0a4e 0%, transparent 60%),
+          radial-gradient(ellipse at 80% 100%, #1a0a3a 0%, transparent 50%),
+          #050008;
+        color: #f0e6ff;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+        min-height: 100vh;
+      }
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 22px 40px;
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .brand { font-weight: 800; font-size: 13px; letter-spacing: 0.4em; color: #e9d5ff; }
+      nav a { color: rgba(245,233,255,0.6); text-decoration: none; font-size: 13px; margin-left: 16px; }
+      nav a:hover { color: #fff; }
+
+      main { max-width: 980px; margin: 0 auto; padding: 20px 40px 80px; }
+      h1 {
+        font-size: 32px;
+        margin-bottom: 4px;
+        background: linear-gradient(135deg, #fff, #c9a8ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .sub { color: rgba(245,233,255,0.55); font-size: 14px; margin-bottom: 30px; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      @media (max-width: 720px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+      .card {
+        background: rgba(20, 10, 40, 0.6);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+        padding: 18px;
+      }
+      .card .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(245,233,255,0.55);
+      }
+      .card .num {
+        font-size: 38px;
+        font-weight: 800;
+        margin-top: 6px;
+        background: linear-gradient(135deg, #a855f7, #22d3ee);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .card .small { font-size: 13px; color: rgba(245,233,255,0.7); }
+
+      section { margin-top: 30px; }
+      h2 {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: #c9a8ff;
+        margin-bottom: 14px;
+      }
+
+      .skill-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(20, 10, 40, 0.5);
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 8px;
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      .skill-row .name { font-weight: 600; }
+      .skill-row .count { color: rgba(245,233,255,0.6); font-size: 13px; }
+      .skill-row .acc {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(34,197,94,0.15);
+        color: #4ade80;
+      }
+      .skill-row .acc.bad { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+      .day-bar {
+        display: flex;
+        gap: 4px;
+        align-items: flex-end;
+        height: 140px;
+        padding: 18px;
+        background: rgba(20,10,40,0.5);
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      .day-bar .col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .day-bar .bar {
+        width: 100%;
+        background: linear-gradient(180deg, #a855f7, #6366f1);
+        border-radius: 6px 6px 0 0;
+        min-height: 2px;
+      }
+      .day-bar .lbl { font-size: 10px; color: rgba(245,233,255,0.55); }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <span class="brand">AURA</span>
+      <div>
+        <a href="/">Home</a>
+        <a href="/simple">App</a>
+        <a href="/dev">Dev</a>
+      </div>
+    </nav>
+    <main>
+      <h1>Your week with AURA</h1>
+      <p class="sub" id="sub">Last 7 days · loading...</p>
+
+      <div class="grid" id="totals"></div>
+
+      <section>
+        <h2>By Skill</h2>
+        <div id="skills"></div>
+      </section>
+
+      <section>
+        <h2>Daily volume</h2>
+        <div class="day-bar" id="day-bar"></div>
+      </section>
+    </main>
+    <script>
+      const $ = (s) => document.querySelector(s);
+      async function load() {
+        const data = await fetch("/api/activity?days=7").then((r) => r.json());
+        const s = data.summary;
+        $("#sub").textContent = `Last ${data.days} days · ${s.sent} notifications`;
+        $("#totals").innerHTML = `
+          <div class="card"><div class="label">Sent</div><div class="num">${s.sent}</div></div>
+          <div class="card"><div class="label">Accepted</div><div class="num">${s.accepted}</div></div>
+          <div class="card"><div class="label">Dismissed</div><div class="num">${s.dismissed}</div></div>
+          <div class="card"><div class="label">Acceptance</div><div class="num">${s.acceptance_rate === null ? "—" : Math.round(s.acceptance_rate * 100) + "%"}</div></div>
+        `;
+        const skills = $("#skills");
+        skills.innerHTML = "";
+        if (data.by_skill.length === 0) {
+          skills.innerHTML = '<div class="card">Nothing yet — open the app and let AURA fire a few notifications.</div>';
+        }
+        for (const r of data.by_skill) {
+          const labeled = r.accepted + r.dismissed;
+          const rate = labeled > 0 ? r.accepted / labeled : null;
+          const row = document.createElement("div");
+          row.className = "skill-row";
+          row.innerHTML = `
+            <div>
+              <div class="name">${r.skill}</div>
+              <div class="count">${r.sent} sent · ${r.accepted} ✓ · ${r.dismissed} ✗</div>
+            </div>
+            <div class="acc ${rate !== null && rate < 0.5 ? "bad" : ""}">${rate === null ? "—" : Math.round(rate * 100) + "%"}</div>
+          `;
+          skills.appendChild(row);
+        }
+
+        // Day bar (last 7 days, bar height ∝ sent)
+        const bar = $("#day-bar");
+        bar.innerHTML = "";
+        const max = Math.max(1, ...data.by_day.map((d) => d.sent));
+        // Pad missing days with 0
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          const dayStr = d.toISOString().slice(0, 10);
+          const found = data.by_day.find((x) => x.day === dayStr);
+          const sent = found?.sent ?? 0;
+          const pct = (sent / max) * 100;
+          const col = document.createElement("div");
+          col.className = "col";
+          col.innerHTML = `<div style="flex:1;display:flex;align-items:flex-end;width:100%"><div class="bar" style="height:${Math.max(2, pct)}%"></div></div><div class="lbl">${d.toLocaleDateString([], { weekday: "short" })}</div><div class="lbl">${sent}</div>`;
+          bar.appendChild(col);
+        }
+      }
+      load();
+      setInterval(load, 8000);
+    </script>
+  </body>
+</html>
