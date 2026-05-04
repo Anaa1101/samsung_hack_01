@@ -81,6 +81,14 @@ export async function runSkill(
   if (decision.intervene && adversary.veto) {
     auditAppend("gate_decision", {
       skill: spec.skill,
+      // Flat calibration fields for direct audit inspection.
+      p_need: decision.p_need,
+      p_accept: decision.p_accept,
+      c_fa: decision.c_fa,
+      c_fn: decision.c_fn,
+      threshold: decision.tau,
+      calibration_status: decision.calibration_status,
+      n_samples: decision.n_samples,
       decision,
       adversary,
       vetoed: true,
@@ -98,6 +106,14 @@ export async function runSkill(
   }
   auditAppend("gate_decision", {
     skill: spec.skill,
+    // Flat calibration fields for direct audit inspection.
+    p_need: decision.p_need,
+    p_accept: decision.p_accept,
+    c_fa: decision.c_fa,
+    c_fn: decision.c_fn,
+    threshold: decision.tau,
+    calibration_status: decision.calibration_status,
+    n_samples: decision.n_samples,
     decision,
     adversary,
     score_total: score.total,

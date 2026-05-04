@@ -19,7 +19,7 @@ export type Soul = {
 };
 
 function extractYamlBlock(raw: string, key: string): unknown {
-  const lines = raw.split("\n");
+  const lines = raw.split(/\r?\n/);
   const headerIdx = lines.findIndex((l) => l.trim().startsWith(`${key}:`));
   if (headerIdx === -1) return null;
   const block: string[] = [lines[headerIdx]];

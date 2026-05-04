@@ -1,6 +1,14 @@
+// ── Edge-PRISM calibration wired into live gate (2026-05-04) ────────────────
+// Before: shouldIntervene used static c_fa/c_fn from SOUL.md on every call.
+// After:  calibrateCosts() (./calibration.ts) reads per-context (skill × hour-bucket)
+//         accept/dismiss history from skill_runs and adapts c_fa/c_fn before τ.
+// GateDecision now carries calibration_status + n_samples for audit traceability.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import type { Soul, SoulContext } from "../soul.js";
 import type { TwinPatterns } from "../twin.js";
 import type { ScoreBreakdown } from "../score/compute.js";
+import { calibrateCosts, toHourBucket } from "./calibration.js";
 
 export type GateContext = {
   now: Date;
@@ -20,12 +28,14 @@ export type GateDecision = {
   mode: "fast" | "slow";
   p_need: number;
   p_accept: number;
-  c_fa: number;
-  c_fn: number;
-  tau: number;
-  utility: number;
+  c_fa: number;        // calibrated (or static if bootstrapping)
+  c_fn: number;        // calibrated (or static if bootstrapping)
+  tau: number;         // threshold = c_fa / (c_fa + c_fn); gate fires when utility > tau
+  utility: number;     // p_need × p_accept
   context_label: SoulContext;
   reason: string;
+  calibration_status: "calibrated" | "bootstrapping";
+  n_samples: number;   // labelled samples used; < MIN_SAMPLES means static fallback
 };
 
 const MARGIN = 0.05;
@@ -89,18 +99,32 @@ export function shouldIntervene(
   twin: TwinPatterns,
 ): GateDecision {
   const context_label = classifyContext(ctx, soul);
-  const weights = soul.cost_weights[context_label] ?? soul.cost_weights.default;
+
+  // Static cost weights from SOUL.md for this SoulContext (false_alarm, missed_help).
+  const staticWeights = soul.cost_weights[context_label] ?? soul.cost_weights.default;
+
+  // Edge-PRISM calibration: adjust c_fa and c_fn using per-context accept/dismiss history.
+  // The context key is skill × hour-bucket (e.g. "morning_brief × morning").
+  // Falls back to staticWeights transparently if fewer than MIN_SAMPLES runs exist.
+  const bucket = toHourBucket(ctx.now.getHours());
+  const cal = calibrateCosts(action.skill, bucket, staticWeights);
 
   const p_need = estimateNeed(action, ctx);
   const p_accept = estimateAccept(action, ctx, twin);
 
-  const c_fa = weights.false_alarm;
-  const c_fn = weights.missed_help;
-  const tau = c_fa / (c_fa + c_fn);
+  const c_fa = cal.c_fa;
+  const c_fn = cal.c_fn;
 
+  // τ (tau): gate fires only when utility = p_need × p_accept exceeds this threshold.
+  // With calibrated costs, τ adapts to the user's revealed preferences over time:
+  // frequent dismissals → higher c_fa → higher τ → gate speaks less often.
+  const tau = c_fa / (c_fa + c_fn);
   const utility = p_need * p_accept;
 
-  // Critical messages bypass the gate (still recorded).
+  const calibration_status = cal.status;
+  const n_samples = cal.n_samples;
+
+  // Critical messages bypass the gate entirely (still recorded in the audit log).
   if (action.importance === "critical") {
     return {
       intervene: true,
@@ -113,6 +137,8 @@ export function shouldIntervene(
       utility,
       context_label,
       reason: "critical override",
+      calibration_status,
+      n_samples,
     };
   }
 
@@ -128,6 +154,8 @@ export function shouldIntervene(
       utility,
       context_label,
       reason: `fast accept: utility ${utility.toFixed(3)} > tau+margin ${(tau + MARGIN).toFixed(3)}`,
+      calibration_status,
+      n_samples,
     };
   }
   if (utility < tau - MARGIN) {
@@ -142,6 +170,8 @@ export function shouldIntervene(
       utility,
       context_label,
       reason: `fast reject: utility ${utility.toFixed(3)} < tau-margin ${(tau - MARGIN).toFixed(3)}`,
+      calibration_status,
+      n_samples,
     };
   }
 
@@ -163,5 +193,7 @@ export function shouldIntervene(
     reason: `slow: regret_if_silent ${regret_if_silent.toFixed(3)} ${
       intervene ? ">" : "<="
     } cost_if_speak ${cost_if_speak.toFixed(3)}`,
+    calibration_status,
+    n_samples,
   };
 }

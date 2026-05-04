@@ -84,6 +84,13 @@ export async function run(
   if (decision.intervene && adversary.veto) {
     auditAppend("gate_decision", {
       skill: "morning_brief",
+      p_need: decision.p_need,
+      p_accept: decision.p_accept,
+      c_fa: decision.c_fa,
+      c_fn: decision.c_fn,
+      threshold: decision.tau,
+      calibration_status: decision.calibration_status,
+      n_samples: decision.n_samples,
       decision,
       adversary,
       vetoed: true,
@@ -96,6 +103,13 @@ export async function run(
 
   auditAppend("gate_decision", {
     skill: "morning_brief",
+    p_need: decision.p_need,
+    p_accept: decision.p_accept,
+    c_fa: decision.c_fa,
+    c_fn: decision.c_fn,
+    threshold: decision.tau,
+    calibration_status: decision.calibration_status,
+    n_samples: decision.n_samples,
     decision,
     adversary,
     score_total: score.total,

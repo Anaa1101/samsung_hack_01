@@ -4,6 +4,7 @@ import { startScheduler } from "./scheduler.js";
 import { createServer } from "./server.js";
 import { append as auditAppend, verifyChain } from "./audit/log.js";
 import { seed } from "./data/seed.js";
+import { countCalibratedContexts } from "./pi-engine/calibration.js";
 
 function maybeSeed(): void {
   const row = db.prepare("SELECT COUNT(*) AS c FROM calendar").get() as
@@ -31,6 +32,9 @@ function main(): void {
   } else {
     console.log("[audit] chain verified");
   }
+
+  const calibratedN = countCalibratedContexts();
+  console.log(`Edge-PRISM calibration: ACTIVE (${calibratedN} contexts loaded)`);
 
   startScheduler();
 

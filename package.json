@@ -10,7 +10,8 @@
     "reseed": "rm -f data/aura.db data/aura.db-wal data/aura.db-shm && tsx src/data/seed.ts",
     "tick": "tsx src/cli/tick.ts",
     "learn": "tsx src/twin/learn.ts",
-    "eval": "tsx src/eval/harness.ts"
+    "eval": "tsx src/eval/harness.ts",
+    "inspect:audit": "node scripts/inspect-audit.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
