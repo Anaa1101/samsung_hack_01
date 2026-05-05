@@ -311,7 +311,7 @@ function fmtN(x: number, d = 2) { return x.toFixed(d); }
 function main() {
   console.log("\n[eval] generating 60 days of synthetic moments...");
   // Fixed seed via deterministic PRNG: skip — noise is fine for a hackathon, results are stable enough.
-  const moments = generateMoments(60, 18);
+  const moments = generateMoments(60);
   const totalUseful = moments.filter((m) => m.truth === "useful").length;
   console.log(`[eval] ${moments.length} moments total, ${totalUseful} ground-truth-useful (${fmtPct(totalUseful / moments.length)})\n`);
 

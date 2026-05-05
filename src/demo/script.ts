@@ -43,7 +43,7 @@ export const DEMO_SCRIPT: DemoStep[] = [
   {
     kind: "say",
     text:
-      "My PRISM gate just computed a decision. Probability you need help, zero point eight five. Probability you'd accept, zero point seven nine. Cost of staying silent, four. Cost of false alarm, one. Threshold, zero point two. Decision: speak.",
+      "My PRISM gate just computed a decision. Probability you need help: {p_need}. Probability you accept: {p_accept}. Cost of false alarm: {c_fa}. Cost of missed help: {c_fn}. Threshold: {threshold}. Decision: speak.",
     pauseMs: 600,
   },
   { kind: "highlight", section: "gate" },
@@ -80,7 +80,7 @@ export const DEMO_SCRIPT: DemoStep[] = [
   {
     kind: "say",
     text:
-      "Just now you marked the last notification helpful. My TWIN just updated my acceptance rate. The next gate decision uses the new number. Across sixty days of seeded events, this approach reduces false alarms by fifty-six percent versus the gate alone.",
+      "Just now you marked the last notification helpful. My TWIN updated my acceptance rate, and the next gate decision uses the new number. Over sixty simulated days, versus an always-on assistant at {nudges_per_day_always_speak} nudges per day, AURA delivers just {nudges_per_day_aura} — cutting false alarms by {false_alarm_reduction_vs_always_speak} percent.",
     pauseMs: 1000,
   },
 
