@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-06T08:59:06.503Z",
+  "generated_at": "2026-05-07T08:44:37.571Z",
   "config": {
     "days": 60,
     "rng_seed": 42,
-    "total_moments": 2788,
-    "ground_truth_useful": 298,
+    "total_moments": 2812,
+    "ground_truth_useful": 318,
     "burst_schedule": "weekday: 4 bursts/day (45% morning 7-10am, 35% EOD 4-7pm, 20% mid-day); weekend: 3 bursts/day random; burst size 3-5",
     "acceptance_model": "per-skill per-context: hydration 0.75/0.45/0.20, commute_guardian 0.85/0.30, morning_brief 0.80/0.40, standup_break 0.70/0.30",
     "calibration_model": "production-faithful: per skill×hour-bucket, c_fa *= (1+blend·dismiss_rate), c_fn *= (1+blend·accept_rate); blend ramps 0→1 over [5,20] samples; mirrors src/pi-engine/calibration.ts"
@@ -12,17 +12,17 @@
   "results": [
     {
       "strategy": "A. always_speak",
-      "notifications": 2788,
+      "notifications": 2812,
       "counters": {
-        "tp": 298,
-        "fp": 2490,
+        "tp": 318,
+        "fp": 2494,
         "tn": 0,
         "fn": 0
       },
-      "per_day": 46.46666666666667,
-      "precision": 0.10688665710186514,
+      "per_day": 46.86666666666667,
+      "precision": 0.11308677098150782,
       "recall": 1,
-      "f1": 0.1931302657161374,
+      "f1": 0.20319488817891374,
       "false_alarm_rate": 1,
       "missed_help_rate": 0
     },
@@ -32,8 +32,8 @@
       "counters": {
         "tp": 0,
         "fp": 0,
-        "tn": 2490,
-        "fn": 298
+        "tn": 2494,
+        "fn": 318
       },
       "per_day": 0,
       "precision": 0,
@@ -44,88 +44,88 @@
     },
     {
       "strategy": "C. fixed_threshold",
-      "notifications": 735,
+      "notifications": 760,
       "counters": {
-        "tp": 187,
-        "fp": 548,
-        "tn": 1942,
-        "fn": 111
+        "tp": 190,
+        "fp": 570,
+        "tn": 1924,
+        "fn": 128
       },
-      "per_day": 12.25,
-      "precision": 0.254421768707483,
-      "recall": 0.62751677852349,
-      "f1": 0.36205227492739595,
-      "false_alarm_rate": 0.22008032128514057,
-      "missed_help_rate": 0.3724832214765101
+      "per_day": 12.666666666666666,
+      "precision": 0.25,
+      "recall": 0.5974842767295597,
+      "f1": 0.3525046382189239,
+      "false_alarm_rate": 0.2285485164394547,
+      "missed_help_rate": 0.4025157232704403
     },
     {
       "strategy": "D. prism_only",
-      "notifications": 411,
+      "notifications": 418,
       "counters": {
-        "tp": 119,
-        "fp": 292,
-        "tn": 2198,
-        "fn": 179
+        "tp": 136,
+        "fp": 282,
+        "tn": 2212,
+        "fn": 182
       },
-      "per_day": 6.85,
-      "precision": 0.2895377128953771,
-      "recall": 0.39932885906040266,
-      "f1": 0.33568406205923834,
-      "false_alarm_rate": 0.11726907630522089,
-      "missed_help_rate": 0.6006711409395973
+      "per_day": 6.966666666666667,
+      "precision": 0.3253588516746411,
+      "recall": 0.4276729559748428,
+      "f1": 0.3695652173913043,
+      "false_alarm_rate": 0.11307137129109864,
+      "missed_help_rate": 0.5723270440251572
     },
     {
       "strategy": "E. prism_calibrated",
-      "notifications": 403,
+      "notifications": 404,
       "counters": {
-        "tp": 118,
-        "fp": 285,
-        "tn": 2205,
-        "fn": 180
+        "tp": 135,
+        "fp": 269,
+        "tn": 2225,
+        "fn": 183
       },
-      "per_day": 6.716666666666667,
-      "precision": 0.29280397022332505,
-      "recall": 0.3959731543624161,
-      "f1": 0.33666191155492153,
-      "false_alarm_rate": 0.1144578313253012,
-      "missed_help_rate": 0.6040268456375839
+      "per_day": 6.733333333333333,
+      "precision": 0.3341584158415842,
+      "recall": 0.42452830188679247,
+      "f1": 0.3739612188365651,
+      "false_alarm_rate": 0.1078588612670409,
+      "missed_help_rate": 0.5754716981132075
     },
     {
       "strategy": "F. prism_full (+adversary)",
-      "notifications": 359,
+      "notifications": 366,
       "counters": {
-        "tp": 113,
-        "fp": 246,
-        "tn": 2244,
-        "fn": 185
+        "tp": 126,
+        "fp": 240,
+        "tn": 2254,
+        "fn": 192
       },
-      "per_day": 5.983333333333333,
-      "precision": 0.3147632311977716,
-      "recall": 0.37919463087248323,
-      "f1": 0.3439878234398782,
-      "false_alarm_rate": 0.09879518072289156,
-      "missed_help_rate": 0.6208053691275168
+      "per_day": 6.1,
+      "precision": 0.3442622950819672,
+      "recall": 0.39622641509433965,
+      "f1": 0.3684210526315789,
+      "false_alarm_rate": 0.09623095429029671,
+      "missed_help_rate": 0.6037735849056604
     }
   ],
   "headline": {
     "vs_always_speak": {
-      "nudge_reduction_pct": 87.1,
-      "false_alarm_reduction_pct": 90.1,
-      "f1_improvement_pct": 78.1
+      "nudge_reduction_pct": 87,
+      "false_alarm_reduction_pct": 90.4,
+      "f1_improvement_pct": 81.3
     },
     "vs_fixed_threshold": {
-      "nudge_reduction_pct": 51.2,
-      "false_alarm_reduction_pct": 55.1,
-      "f1_improvement_pct": -5
+      "nudge_reduction_pct": 51.8,
+      "false_alarm_reduction_pct": 57.9,
+      "f1_improvement_pct": 4.5
     },
     "vs_prism_only": {
-      "nudge_reduction_pct": 12.7,
-      "false_alarm_reduction_pct": 15.8
+      "nudge_reduction_pct": 12.4,
+      "false_alarm_reduction_pct": 14.9
     },
     "calibrated_vs_prism_only": {
-      "nudge_reduction_pct": 1.9,
-      "false_alarm_reduction_pct": 2.4,
-      "f1_delta_pct": 0.3
+      "nudge_reduction_pct": 3.3,
+      "false_alarm_reduction_pct": 4.6,
+      "f1_delta_pct": 1.2
     }
   }
 }
