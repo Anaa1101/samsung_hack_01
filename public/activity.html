@@ -153,8 +153,27 @@
     </main>
     <script>
       const $ = (s) => document.querySelector(s);
+      const TUNNEL_HEADERS = { "bypass-tunnel-reminder": "true" };
+      const CACHE_KEY = "aura-cache:/api/activity?days=7";
+      const fallback = {
+        days: 7,
+        summary: { sent: 0, accepted: 0, dismissed: 0, acceptance_rate: null },
+        by_skill: [],
+        by_day: [],
+      };
       async function load() {
-        const data = await fetch("/api/activity?days=7").then((r) => r.json());
+        let data = fallback;
+        try {
+          const r = await fetch("/api/activity?days=7", { headers: TUNNEL_HEADERS });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          data = await r.json();
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
+        } catch {
+          try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) data = JSON.parse(cached);
+          } catch {}
+        }
         const s = data.summary;
         $("#sub").textContent = `Last ${data.days} days · ${s.sent} notifications`;
         $("#totals").innerHTML = `
@@ -192,7 +211,7 @@
         for (let i = 6; i >= 0; i--) {
           const d = new Date(today);
           d.setDate(d.getDate() - i);
-          const dayStr = d.toISOString().slice(0, 10);
+          const dayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           const found = data.by_day.find((x) => x.day === dayStr);
           const sent = found?.sent ?? 0;
           const pct = (sent / max) * 100;

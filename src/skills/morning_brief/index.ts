@@ -1,5 +1,5 @@
 import { computeScore, type ScoreBreakdown } from "../../score/compute.js";
-import { db } from "../../db.js";
+import { db, recordEvent, recordNotification } from "../../db.js";
 import { shouldIntervene, type GateContext, type ProposedAction } from "../../pi-engine/gate.js";
 import { applyShadow, shadowReview } from "../../pi-engine/shadow.js";
 import { critique } from "../../pi-engine/adversary.js";
@@ -9,7 +9,6 @@ import { narrate } from "../../gateway/ollama.js";
 import { sendTelegram } from "../../gateway/telegram.js";
 import { speak } from "../../gateway/voice.js";
 import { append as auditAppend } from "../../audit/log.js";
-import { recordEvent } from "../../db.js";
 import { componentLabel, morningBrief as briefTemplate, type Lang } from "../../i18n.js";
 
 export type SkillResult = {
@@ -73,7 +72,7 @@ export async function run(
   };
   const soul = loadSoul();
   const twin = loadTwin();
-  let decision = shouldIntervene(action, ctx, soul, twin);
+  let decision = shouldIntervene(action, ctx, soul, twin, score);
 
   if (decision.mode === "slow" && !dry_run) {
     const verdict = await shadowReview(action, ctx, decision);
@@ -152,6 +151,7 @@ export async function run(
   const skill_run_id = Number(insertRes.lastInsertRowid);
 
   recordEvent("notification_sent", { skill: "morning_brief", channel: sent.channel });
+    recordNotification("morning_brief");
 
   auditAppend("notification_sent", {
     skill: "morning_brief",

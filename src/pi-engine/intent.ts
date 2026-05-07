@@ -1,7 +1,7 @@
 // Intent router — small keyword/regex classifier. Turns a free-text transcript
 // into a structured action. No LLM needed for the MVP. Extend by adding handlers.
 
-import { db, recordEvent } from "../db.js";
+import { db, isShuttingDown, localDayBounds, recordEvent } from "../db.js";
 import { computeScore } from "../score/compute.js";
 import { getWeather } from "../gateway/weather.js";
 import {
@@ -21,7 +21,7 @@ import {
   takeScreenshot,
 } from "../gateway/system.js";
 import { wikiSummary, defineWord, tellJoke } from "../gateway/lookup.js";
-import { speak } from "../gateway/voice.js";
+import { speakWithRetry } from "../gateway/voice.js";
 import { narrate } from "../gateway/ollama.js";
 import { config } from "../config.js";
 import { append as auditAppend } from "../audit/log.js";
@@ -86,19 +86,24 @@ function safeEvalMath(expr: string): number | null {
 // ---- Timer scheduler (in-process)
 function scheduleTimer(label: string, minutes: number): void {
   const end = new Date(Date.now() + minutes * 60 * 1000);
-  db.prepare("INSERT INTO timers (label, end_ts, fired) VALUES (?, ?, 0)").run(
+  const res = db
+    .prepare("INSERT INTO timers (label, end_ts, fired) VALUES (?, ?, 0)")
+    .run(
     label,
     end.toISOString(),
   );
-  setTimeout(
-    () => {
-      const message = `Timer up: ${label}.`;
-      speak(message);
-      recordEvent("timer_fired", { label, minutes });
-      auditAppend("timer_fired", { label, minutes });
-    },
-    minutes * 60 * 1000,
-  );
+  const timerId = Number(res.lastInsertRowid);
+  setTimeout(async () => {
+    if (isShuttingDown()) {
+      auditAppend("timer_deferred", { label, minutes, reason: "shutdown" });
+      return;
+    }
+    const message = `Timer up: ${label}.`;
+    const spoken = await speakWithRetry(message);
+    db.prepare("UPDATE timers SET fired = 1 WHERE id = ?").run(timerId);
+    recordEvent("timer_fired", { label, minutes, spoken: spoken.spoken, attempts: spoken.attempts });
+    auditAppend("timer_fired", { label, minutes, spoken: spoken.spoken, attempts: spoken.attempts });
+  }, minutes * 60 * 1000);
 }
 
 export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<IntentResult> {
@@ -333,12 +338,13 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
   }
 
   if (/(meetings today|all my meetings|today'?s schedule)/.test(transcript)) {
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayBounds = localDayBounds(now);
     const rows = db
       .prepare(
-        "SELECT title, start_ts FROM calendar WHERE date(start_ts) = ? ORDER BY start_ts ASC",
+        "SELECT title, start_ts FROM calendar WHERE start_ts >= ? AND start_ts <= ? ORDER BY start_ts ASC",
       )
-      .all(today) as Array<{ title: string; start_ts: string }>;
+      .all(todayBounds.start, todayBounds.end) as Array<{ title: string; start_ts: string }>;
     if (!rows.length) {
       return log({ intent: "meetings_today", reply: pickReply(lang, "No meetings today.", "आज कोई मीटिंग नहीं।", "ಇಂದು ಸಭೆಗಳಿಲ್ಲ.") });
     }

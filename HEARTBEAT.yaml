@@ -59,7 +59,6 @@ ticks:
 
   - id: twin_relearn
     skill: twin_learn
-    when: "*"
-    cadence: every_5_min
-    dry_run: true
-    description: "Recompute TWIN patterns from event history"
+    when: "03:00-03:30"
+    cadence: once_per_day
+    description: "Nightly: recompute and persist TWIN patterns from all event history so AURA wakes up with fresh behavioral data"

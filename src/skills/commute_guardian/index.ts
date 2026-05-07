@@ -1,5 +1,5 @@
 import { computeScore, type ScoreBreakdown } from "../../score/compute.js";
-import { db, recordEvent } from "../../db.js";
+import { db, recordEvent, recordNotification } from "../../db.js";
 import { shouldIntervene, type GateContext, type ProposedAction } from "../../pi-engine/gate.js";
 import { applyShadow, shadowReview } from "../../pi-engine/shadow.js";
 import { critique } from "../../pi-engine/adversary.js";
@@ -90,7 +90,7 @@ export async function run(
     next_event_min_until: next.min_until,
     next_event_title: next.title,
   };
-  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin());
+  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin(), score);
   if (decision.mode === "slow" && !dry_run) {
     const verdict = await shadowReview(action, ctx, decision);
     decision = applyShadow(decision, verdict);
@@ -171,6 +171,7 @@ export async function run(
   const skill_run_id = Number(insertRes.lastInsertRowid);
 
   recordEvent("notification_sent", { skill: "commute_guardian", channel: sent.channel });
+  recordNotification("commute_guardian");
   auditAppend("notification_sent", {
     skill: "commute_guardian",
     channel: sent.channel,
