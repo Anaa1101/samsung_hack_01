@@ -1,4 +1,4 @@
-import { db } from "../db.js";
+import { db, localDateString } from "../db.js";
 
 function isoOffset(now: Date, offsetMin: number): string {
   return new Date(now.getTime() + offsetMin * 60 * 1000).toISOString();
@@ -11,7 +11,7 @@ function todayAt(now: Date, hour: number, min = 0): Date {
 }
 
 function dateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return localDateString(d);
 }
 
 export function seed(now: Date = new Date()): void {

@@ -1,4 +1,7 @@
 import express from "express";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 import { checkOllamaHealth, type OllamaHealth } from "./gateway/ollama.js";
 import { computeScore } from "./score/compute.js";
@@ -16,6 +19,17 @@ import { isInQuietBlock } from "./db.js";
 import { isLang, type Lang } from "./i18n.js";
 import { startDemo, stopDemo, getDemoStatus } from "./demo/runner.js";
 import { shouldIntervene, type GateContext, type ProposedAction } from "./pi-engine/gate.js";
+import { readHrvStress } from "./pi-engine/fusion.js";
+import simulateRouter from "./server/simulate.js";
+
+// ── Production metrics counters ──────────────────────────────────────────────
+const METRICS = {
+  requests_total: 0,
+  errors_total: 0,
+  skills_fired: 0,
+  gate_decisions: 0,
+  start_time: Date.now(),
+};
 
 // ── Ollama health cache (15-second TTL so the dashboard poll doesn't hammer Ollama) ──
 let _healthCache: { ollama: "online" | "offline"; model: string | null; last_check: string } = {
@@ -59,10 +73,105 @@ function isIsoDate(s: unknown): s is string {
   return Number.isFinite(t);
 }
 
+function formatUptime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function getDbRowCounts(): Record<string, number> {
+  const dbRows = db.prepare(
+    "SELECT 'skill_runs' AS t, COUNT(*) AS c FROM skill_runs UNION ALL " +
+    "SELECT 'events', COUNT(*) FROM events UNION ALL " +
+    "SELECT 'audit_log', COUNT(*) FROM audit_log UNION ALL " +
+    "SELECT 'calendar', COUNT(*) FROM calendar UNION ALL " +
+    "SELECT 'steps', COUNT(*) FROM steps",
+  ).all() as Array<{ t: string; c: number }>;
+  const dbStats: Record<string, number> = {};
+  for (const r of dbRows) dbStats[r.t] = r.c;
+  return dbStats;
+}
+
 export function createServer(): express.Express {
   const app = express();
+
+  // ── CORS ──────────────────────────────────────────────────────────────────
+  // Wildcard CORS: this is a single-user local daemon, not a public server.
+  // Allowing all origins lets Lovable, localtunnel, ngrok, and any preview
+  // environment reach the API without whitelisting every ephemeral URL.
+  app.use(cors({
+    origin: true,   // reflect the request origin — effectively wildcard
+    methods: ["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "bypass-tunnel-reminder"],
+    credentials: true,
+  }));
+
+  // ── Localtunnel bypass header ──────────────────────────────────────────────
+  // Localtunnel shows a human-verification page unless this header is present.
+  // Setting it on every response lets the Lovable frontend skip the prompt.
+  app.use((_req, res, next) => {
+    res.setHeader("bypass-tunnel-reminder", "true");
+    next();
+  });
+
+  // ── Request-ID tracing ──────────────────────────────────────────────────────
+  // Every response carries a unique X-Request-Id header for tracing in logs.
+  app.use((_req, res, next) => {
+    const id = randomUUID();
+    res.setHeader("X-Request-Id", id);
+    METRICS.requests_total++;
+    next();
+  });
+
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  // 100 requests per minute per IP. Generous for a dashboard; stops abuse.
+  app.use("/api/", rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "rate_limited", message: "Too many requests — max 100/min" },
+  }));
+
+  const sayLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "rate_limited", message: "Too many /api/say requests — max 30/min" },
+  });
+  const hrvLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "rate_limited", message: "Too many /api/hrv requests — max 60/min" },
+  });
+
+  // ── Optional API-key authentication ─────────────────────────────────────────
+  // Set AURA_API_KEY in .env to enable. When set, every /api/* request must
+  // include `Authorization: Bearer <key>`. Disabled by default for dev.
+  const API_KEY = process.env.AURA_API_KEY ?? "";
+  const IS_PROD = process.env.NODE_ENV === "production";
+  if (IS_PROD && !API_KEY) {
+    throw new Error("AURA_API_KEY must be set in production.");
+  }
+  if (API_KEY) {
+    app.use("/api/", (req, res, next) => {
+      const auth = req.headers.authorization;
+      if (auth === `Bearer ${API_KEY}`) return next();
+      res.status(401).json({ error: "unauthorized", message: "Invalid or missing API key" });
+    });
+    console.log("[security] API key authentication ENABLED");
+  }
+
   // Cap request bodies — prevents trivial memory exhaustion.
   app.use(express.json({ limit: "256kb" }));
+  app.use("/api/simulate", simulateRouter);
   app.use(express.static(config.paths.publicDir));
 
   // Pretty URLs: / is the landing page, /simple is the PWA, /dev is the dev dashboard.
@@ -81,6 +190,98 @@ export function createServer(): express.Express {
 
   app.get("/health", wrap(async (_req, res) => {
     res.json(await getCachedHealth());
+  }));
+
+  app.get("/metrics", wrap(async (_req, res) => {
+    const health = await getCachedHealth();
+    const dbStats = getDbRowCounts();
+    const uptimeSeconds = Math.round((Date.now() - METRICS.start_time) / 1000);
+    const lines = [
+      "# HELP aura_requests_total Total HTTP requests",
+      "# TYPE aura_requests_total counter",
+      `aura_requests_total ${METRICS.requests_total}`,
+      "# HELP aura_errors_total Total server errors",
+      "# TYPE aura_errors_total counter",
+      `aura_errors_total ${METRICS.errors_total}`,
+      "# HELP aura_skills_fired Total skills fired",
+      "# TYPE aura_skills_fired counter",
+      `aura_skills_fired ${METRICS.skills_fired}`,
+      "# HELP aura_gate_decisions Total gate decisions",
+      "# TYPE aura_gate_decisions counter",
+      `aura_gate_decisions ${METRICS.gate_decisions}`,
+      "# HELP aura_uptime_seconds Process uptime in seconds",
+      "# TYPE aura_uptime_seconds gauge",
+      `aura_uptime_seconds ${uptimeSeconds}`,
+      "# HELP aura_ollama_online Ollama availability (1=online)",
+      "# TYPE aura_ollama_online gauge",
+      `aura_ollama_online ${health.ollama === "online" ? 1 : 0}`,
+    ];
+    for (const [k, v] of Object.entries(dbStats)) {
+      lines.push(`aura_db_rows{table="${k}"} ${v}`);
+    }
+    res.setHeader("Content-Type", "text/plain; version=0.0.4");
+    res.send(lines.join("\n") + "\n");
+  }));
+
+  // ── Production metrics endpoint ──────────────────────────────────────────────
+  // Returns system health, uptime, request counts, DB stats, and memory usage.
+  // Useful for monitoring dashboards and liveness probes.
+  app.get("/api/metrics", wrap(async (_req, res) => {
+    const health = await getCachedHealth();
+    const dbStats = getDbRowCounts();
+
+    const mem = process.memoryUsage();
+    res.json({
+      status: "healthy",
+      uptime_seconds: Math.round((Date.now() - METRICS.start_time) / 1000),
+      uptime_human: formatUptime(Date.now() - METRICS.start_time),
+      requests_total: METRICS.requests_total,
+      errors_total: METRICS.errors_total,
+      skills_fired: METRICS.skills_fired,
+      gate_decisions: METRICS.gate_decisions,
+      ollama: health.ollama,
+      db_row_counts: dbStats,
+      memory: {
+        rss_mb: Math.round(mem.rss / 1048576),
+        heap_used_mb: Math.round(mem.heapUsed / 1048576),
+        heap_total_mb: Math.round(mem.heapTotal / 1048576),
+      },
+      node_version: process.version,
+      platform: process.platform,
+      pid: process.pid,
+      ts: new Date().toISOString(),
+    });
+  }));
+
+  // ── Aggregated status endpoint (for Lovable / external UI) ───────────────
+  // Returns everything the dashboard needs in a single request:
+  // score, next event, last notification, HRV, voice state, ollama health.
+  app.get("/api/status", wrap(async (_req, res) => {
+    const now = new Date();
+    const score = computeScore(now);
+    const next = db
+      .prepare("SELECT title, start_ts FROM calendar WHERE start_ts > ? ORDER BY start_ts ASC LIMIT 1")
+      .get(now.toISOString()) as { title: string; start_ts: string } | undefined;
+    const lastNotif = db
+      .prepare(`SELECT ts, skill, payload FROM skill_runs WHERE payload LIKE '%"text":%' ORDER BY id DESC LIMIT 1`)
+      .get() as { ts: string; skill: string; payload: string } | undefined;
+    let lastText: string | null = null;
+    if (lastNotif) { try { lastText = JSON.parse(lastNotif.payload).text ?? null; } catch {} }
+    const { readHrvStress } = await import("./pi-engine/fusion.js");
+    const hrv_stress = readHrvStress();
+    const health = await getCachedHealth();
+    res.json({
+      score: { total: score.total, components: score.components },
+      next_event: next ? {
+        title: next.title,
+        min_until: Math.round((new Date(next.start_ts).getTime() - now.getTime()) / 60000),
+      } : null,
+      last_message: lastText ? { skill: lastNotif!.skill, ts: lastNotif!.ts, text: lastText } : null,
+      hrv: { stress_normalised: Number.isFinite(hrv_stress) ? hrv_stress : null },
+      voice_enabled: isVoiceEnabled(),
+      ollama: health.ollama,
+      ts: now.toISOString(),
+    });
   }));
 
   app.get("/api/score", (_req, res) => {
@@ -102,6 +303,10 @@ export function createServer(): express.Express {
       res.status(400).json({ error: "start_ts, end_ts (ISO 8601), title (non-empty string) required" });
       return;
     }
+    if (title.length > 200) {
+      res.status(400).json({ error: "title must be <= 200 chars" });
+      return;
+    }
     if (Date.parse(start_ts) >= Date.parse(end_ts)) {
       res.status(400).json({ error: "start_ts must be before end_ts" });
       return;
@@ -110,9 +315,19 @@ export function createServer(): express.Express {
       res.status(400).json({ error: "location must be a string when provided" });
       return;
     }
+    if (typeof location === "string" && location.length > 200) {
+      res.status(400).json({ error: "location must be <= 200 chars" });
+      return;
+    }
     db.prepare(
       "INSERT INTO calendar (start_ts, end_ts, title, location) VALUES (?, ?, ?, ?)",
     ).run(start_ts, end_ts, title.trim(), location ?? null);
+    auditAppend("calendar_create", {
+      start_ts,
+      end_ts,
+      title: title.trim(),
+      location: location ?? null,
+    });
     res.json({ ok: true });
   });
 
@@ -122,7 +337,13 @@ export function createServer(): express.Express {
       res.status(400).json({ error: "id must be a positive integer" });
       return;
     }
+    const row = db
+      .prepare("SELECT start_ts, end_ts, title, location FROM calendar WHERE id = ?")
+      .get(id) as { start_ts: string; end_ts: string; title: string; location: string | null } | undefined;
     db.prepare("DELETE FROM calendar WHERE id = ?").run(id);
+    if (row) {
+      auditAppend("calendar_delete", { id, ...row });
+    }
     res.json({ ok: true });
   });
 
@@ -209,16 +430,18 @@ export function createServer(): express.Express {
 
   app.post("/api/voice", (req, res) => {
     setVoiceEnabled(!!req.body?.enabled);
+    auditAppend("voice_toggle", { enabled: isVoiceEnabled() });
     res.json({ enabled: isVoiceEnabled() });
   });
 
   app.post("/api/voice/test", (req, res) => {
     const text = String(req.body?.text ?? "AURA voice check.").slice(0, 2000);
     const result = speak(text);
+    auditAppend("voice_test", { spoken: result.spoken, voice: result.voice, text_len: text.length });
     res.json({ ...result, text });
   });
 
-  app.post("/api/say", wrap(async (req, res) => {
+  app.post("/api/say", sayLimiter, wrap(async (req, res) => {
     // Cap transcript length so a runaway client can't queue megabytes of TTS.
     const transcript = String(req.body?.transcript ?? "").trim().slice(0, 2000);
     if (!transcript) {
@@ -277,6 +500,42 @@ export function createServer(): express.Express {
     res.json({ ok: true, accepted, rejected });
   });
 
+  // ---- Galaxy Watch HRV endpoint ----
+  // POST { rmssd: number }  (raw RMSSD in ms, typically 20-100)
+  //   Normalises to a 0-1 stress score (high rmssd = relaxed = low stress)
+  //   and writes it to settings so readHrvStress() in fusion.ts picks it up.
+  // GET returns the current normalised stress value + raw RMSSD if stored.
+  // Phase 3: replace with Samsung Health Data SDK push from Galaxy Watch.
+  app.post("/api/hrv", hrvLimiter, (req, res) => {
+    const raw = req.body?.rmssd;
+    if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0 || raw > 300) {
+      res.status(400).json({ error: "rmssd must be a finite number between 0 and 300" });
+      return;
+    }
+    // Normalise: RMSSD ~20ms = high stress (→1), ~100ms = relaxed (→0).
+    // Linear clamp over [20, 100] range.
+    const normalised = Math.max(0, Math.min(1, (100 - raw) / 80));
+    const ts = new Date().toISOString();
+    db.prepare(
+      "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    ).run("hrv_stress", String(normalised), ts);
+    db.prepare(
+      "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    ).run("hrv_rmssd_raw", String(raw), ts);
+    auditAppend("hrv_updated", { rmssd_raw: raw, stress_normalised: normalised });
+    res.json({ ok: true, rmssd: raw, stress_normalised: normalised });
+  });
+
+  app.get("/api/hrv", (_req, res) => {
+    const stress = readHrvStress();
+    const rawRow = db.prepare("SELECT value FROM settings WHERE key = 'hrv_rmssd_raw'").get() as { value: string } | undefined;
+    res.json({
+      stress_normalised: Number.isFinite(stress) ? stress : null,
+      rmssd_raw: rawRow ? parseFloat(rawRow.value) : null,
+      source: Number.isFinite(stress) ? "galaxy_watch" : "none",
+    });
+  });
+
   // ---- Activity stats: per-day counts + acceptance ----
   app.get("/api/activity", (req, res) => {
     // Validate days: positive integer, capped to 365 so an attacker can't
@@ -300,7 +559,7 @@ export function createServer(): express.Express {
       .all(since) as Array<{ skill: string; sent: number; accepted: number; dismissed: number }>;
     const byDay = db
       .prepare(
-        `SELECT date(ts) AS day, COUNT(*) AS sent,
+        `SELECT date(ts, 'localtime') AS day, COUNT(*) AS sent,
                 COALESCE(SUM(accepted), 0) AS accepted,
                 COALESCE(SUM(dismissed), 0) AS dismissed
          FROM skill_runs
@@ -425,7 +684,7 @@ export function createServer(): express.Express {
       next_event_min_until: nextMinUntil,
       next_event_title: next?.title ?? null,
     };
-    const decision = shouldIntervene(action, ctx, loadSoul(), loadTwin());
+    const decision = shouldIntervene(action, ctx, loadSoul(), loadTwin(), score);
     res.json({ decision, score: { total: score.total }, context: ctx });
   });
 
@@ -433,6 +692,7 @@ export function createServer(): express.Express {
   // routed via wrap(). Without this, async failures crash the daemon. Must be
   // declared LAST so it sees errors from every preceding route.
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    METRICS.errors_total++;
     const message = err instanceof Error ? err.message : String(err);
     console.error("[server] unhandled error:", err);
     try {

@@ -98,23 +98,23 @@ The adversary critic and Shadow AURA are additional layers beyond the original p
 
 | Strategy | Nudges/day | False-alarm rate | F1 |
 |---|---|---|---|
-| Always-speak | 41.0 | 100% | 0.229 |
+| Always-speak | 46.9 | 100% | 0.203 |
 | Never-speak | 0.0 | 0% | 0.000 |
-| Fixed-threshold heuristic | 11.9 | 23.2% | 0.419 |
-| PRISM gate alone | 6.2 | 9.8% | 0.470 |
-| **+ Edge-Calibration + Adversary (us)** | **6.0** | **9.3%** | **0.470** |
+| Fixed-threshold heuristic | 12.7 | 22.9% | 0.353 |
+| PRISM gate alone | 7.0 | 11.3% | 0.370 |
+| **+ Edge-Calibration + Adversary (us)** | **6.1** | **9.6%** | **0.368** |
 
 **Headline (vs always-speak):**
-- 85% fewer notifications
-- 91% lower false-alarm rate
-- F1 +105%
+- 87% fewer notifications
+- 90% lower false-alarm rate
+- F1 +81%
 
 **vs the most common heuristic (fixed threshold):**
-- 50% fewer notifications
-- 60% lower false alarm rate
-- F1 +12%
+- 52% fewer notifications
+- 58% lower false alarm rate
+- F1 +4.5%
 
-*Evaluated on 60 days of seeded behavioral traces (2,460 moments, 12.9% ground-truth-useful). See `eval/results.json`.*
+*Evaluated on 60 days of seeded behavioral traces (2,812 moments, 11.3% ground-truth-useful). See `eval/results.json`.*
 
 ---
 

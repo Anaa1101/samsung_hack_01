@@ -17,7 +17,7 @@ Most assistants are wrong in opposite directions:
 - 🚨 **Notification spammers** interrupt you constantly.
 - 🪨 **Voice assistants** (Siri, ChatGPT, Alexa) stay silent until you wake them.
 
-AURA sits in the missing middle. Every potential nudge runs through a cost-sensitive decision-theoretic gate (PRISM, 2026), an always-on adversarial critic, and — when borderline — a slow-mode counterfactual review. Result: **85% fewer notifications than always-speak baselines, F1 doubled.**
+AURA sits in the missing middle. Every potential nudge runs through a cost-sensitive decision-theoretic gate (PRISM, 2026), an always-on adversarial critic, and — when borderline — a slow-mode counterfactual review. Result: **87% fewer notifications than always-speak baselines, F1 +81%.**
 
 The pitch in one line:
 
@@ -32,6 +32,12 @@ npm install
 npm run dev
 ```
 
+Optional tunnel (for external UIs):
+
+```bash
+npm run tunnel
+```
+
 Then open:
 
 | URL | What it is |
@@ -40,6 +46,7 @@ Then open:
 | **http://localhost:3000/simple** | The app (try this) |
 | **http://localhost:3000/dev** | Backstage view (every gate decision, audit chain, calendar editor — judges love this) |
 | **http://localhost:3000/activity** | Your weekly stats |
+| **http://localhost:3000/metrics** | Prometheus-style metrics |
 
 **Best 90 seconds:** open `/simple`, click the orange **🎭 AURA demoes herself** button, then sit back. AURA narrates her own pitch out loud, triggers her own scenarios, vetoes herself, and finishes in Hindi.
 
@@ -60,7 +67,7 @@ Then open:
 
 ### 🛠 The agent (real product)
 
-- **10 proactive skills** that fire on their own: morning brief · commute guardian · meeting reminder · hydration · stand-up break · end-of-day wrap · wind-down · twin learner · score refresh · plus on-demand
+- **7 proactive skills** that fire on their own: morning brief · commute guardian · meeting reminder · hydration · stand-up break · end-of-day wrap · wind-down · plus on-demand
 - **40+ voice commands**: timers, notes, math, unit conversion, Wikipedia, definitions, jokes, volume control, lock screen, screenshots, open URLs / files / apps, web search
 - **"Hey AURA" wake word** — toggle it on, talk hands-free
 - **Multilingual** — English, हिन्दी, ಕನ್ನಡ (voice in + voice out)
@@ -113,19 +120,19 @@ Every step writes to an HMAC-chained audit log. Open `/dev` to inspect any decis
 
 ## Evaluation
 
-We ran a 60-day synthetic stream of 2,460 potential nudge moments (12.9% ground-truth-useful) through 6 strategies. See [`src/eval/harness.ts`](src/eval/harness.ts) and [`eval/results.json`](eval/results.json).
+We ran a 60-day synthetic stream of 2,812 potential nudge moments (11.3% ground-truth-useful) through 6 strategies. See [`src/eval/harness.ts`](src/eval/harness.ts) and [`eval/results.json`](eval/results.json).
 
 | Strategy | Nudges/day | False-alarm | F1 |
 |---|---:|---:|---:|
-| Always-speak | 41.0 | 100.0% | 0.229 |
+| Always-speak | 46.9 | 100.0% | 0.203 |
 | Never-speak | 0.0 | 0% | 0.000 |
-| Fixed threshold | 11.9 | 23.2% | 0.419 |
-| PRISM only (baseline) | 6.2 | 9.8% | 0.470 |
-| **+ Edge-Calibration + Adversary (us)** | **6.0** | **9.3%** | **0.470** |
+| Fixed threshold | 12.7 | 22.9% | 0.353 |
+| PRISM only (baseline) | 7.0 | 11.3% | 0.370 |
+| **+ Edge-Calibration + Adversary (us)** | **6.1** | **9.6%** | **0.368** |
 
 **Headline:**
-- vs always-speak: **85% fewer notifications, 91% lower false alarm, F1 +105%**
-- vs fixed-threshold: **50% fewer notifications, 60% lower false alarm, F1 +12%**
+- vs always-speak: **87% fewer notifications, 90% lower false alarm, F1 +81%**
+- vs fixed-threshold: **52% fewer notifications, 58% lower false alarm, F1 +4.5%**
 
 Run it yourself:
 
@@ -159,6 +166,8 @@ User-facing changes (name, language, quiet hours, city) are in **Settings** (gea
 - **All state stays in `data/aura.db`** (local SQLite).
 - **Audit log is HMAC-signed** with a key in your `.env`.
 - For the demo: **turn off your WiFi**. AURA still works. That's the privacy proof.
+
+Production note: set `NODE_ENV=production` and `AURA_API_KEY` to enable API key enforcement.
 
 ---
 

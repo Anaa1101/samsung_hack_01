@@ -36,7 +36,7 @@ const WEIGHTS = {
 const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
 
 function todayDateString(now: Date): string {
-  return now.toISOString().slice(0, 10);
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function getSleepMin(now: Date): number {

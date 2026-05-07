@@ -1,9 +1,9 @@
 // Shared helpers used by all skills. Cuts boilerplate.
 
 import { computeScore, type ScoreBreakdown } from "../score/compute.js";
-import { db, recordEvent } from "../db.js";
+import { db, recordEvent, recordNotification } from "../db.js";
 import { shouldIntervene, type GateContext, type ProposedAction } from "../pi-engine/gate.js";
-import { applyShadow, shadowReview } from "../pi-engine/shadow.js";
+import { applyShadow, shadowReview, type ShadowVerdict } from "../pi-engine/shadow.js";
 import { critique } from "../pi-engine/adversary.js";
 import { loadSoul } from "../soul.js";
 import { loadTwin } from "../twin.js";
@@ -20,6 +20,7 @@ export type SkillBaseResult = {
   message?: { text: string; source: string; channel: string; skill_run_id: number };
   vetoed?: { reason: string };
   dry_run: boolean;
+  prewarmed?: boolean;
 };
 
 export function getNextEvent(now: Date) {
@@ -50,7 +51,7 @@ const langInstr = (lang: Lang) =>
 
 export async function runSkill(
   spec: RunSpec,
-  opts: { dry_run?: boolean; now?: Date; lang?: Lang } = {},
+  opts: { dry_run?: boolean; now?: Date; lang?: Lang; prewarm?: boolean } = {},
 ): Promise<SkillBaseResult> {
   const now = opts.now ?? new Date();
   const dry_run = opts.dry_run ?? false;
@@ -72,10 +73,27 @@ export async function runSkill(
     next_event_title: next.title,
   };
 
-  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin());
-  if (decision.mode === "slow" && !dry_run) {
-    const v = await shadowReview(action, ctx, decision);
+  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin(), score);
+  if (decision.mode === "slow" && (!dry_run || opts.prewarm)) {
+    let v: ShadowVerdict;
+    if (opts.prewarm) {
+      v = await shadowReview(action, ctx, decision);
+      db.prepare("INSERT INTO prewarm_cache (skill, ts, verdict) VALUES (?, ?, ?) ON CONFLICT(skill) DO UPDATE SET ts = excluded.ts, verdict = excluded.verdict").run(spec.skill, now.toISOString(), JSON.stringify(v));
+      auditAppend("shadow_prewarm", { skill: spec.skill });
+      return { score, decision, next_event: next, dry_run, prewarmed: true };
+    } else {
+      const cached = db.prepare("SELECT ts, verdict FROM prewarm_cache WHERE skill = ?").get(spec.skill) as { ts: string; verdict: string } | undefined;
+      if (cached && (now.getTime() - new Date(cached.ts).getTime() < 15 * 60000)) {
+        v = JSON.parse(cached.verdict) as ShadowVerdict;
+        db.prepare("DELETE FROM prewarm_cache WHERE skill = ?").run(spec.skill);
+        auditAppend("shadow_cache_hit", { skill: spec.skill });
+      } else {
+        v = await shadowReview(action, ctx, decision);
+      }
+    }
     decision = applyShadow(decision, v);
+  } else if (opts.prewarm) {
+    return { score, decision, next_event: next, dry_run, prewarmed: true };
   }
   const adversary = critique(action, ctx, decision);
   if (decision.intervene && adversary.veto) {
@@ -142,6 +160,7 @@ export async function runSkill(
   const skill_run_id = Number(ins.lastInsertRowid);
 
   recordEvent("notification_sent", { skill: spec.skill, channel: sent.channel });
+  recordNotification(spec.skill);
   auditAppend("notification_sent", {
     skill: spec.skill,
     channel: sent.channel,

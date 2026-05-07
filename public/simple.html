@@ -434,8 +434,55 @@
 
     <script>
       const $ = (s) => document.querySelector(s);
-      const j = (u) => fetch(u).then((r) => r.json());
-      const jp = (u, b) => fetch(u, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b ?? {}) }).then((r) => r.json());
+      const TUNNEL_HEADERS = { "bypass-tunnel-reminder": "true" };
+      const CACHE_PREFIX = "aura-cache:";
+
+      const cacheKey = (u) => `${CACHE_PREFIX}${u}`;
+      const cacheRead = (u) => {
+        try {
+          const raw = localStorage.getItem(cacheKey(u));
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      };
+      const cacheWrite = (u, data) => {
+        try {
+          localStorage.setItem(cacheKey(u), JSON.stringify(data));
+        } catch {}
+      };
+      const fallbackFor = (u) => {
+        if (u === "/api/last") return { last_message: null, next_event: null, voice_enabled: true };
+        if (u === "/api/quiet") return { active: false };
+        if (u === "/api/demo/state") {
+          return { running: false, step_index: -1, total_steps: 0, phase: "idle", highlight: null, highlight_label: null, started_at: null, finished_at: null };
+        }
+        return null;
+      };
+
+      const j = async (u) => {
+        try {
+          const r = await fetch(u, { headers: TUNNEL_HEADERS });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          cacheWrite(u, data);
+          return data;
+        } catch {
+          return cacheRead(u) ?? fallbackFor(u);
+        }
+      };
+      const jp = async (u, b) => {
+        try {
+          const r = await fetch(u, {
+            method: "POST",
+            headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
+            body: JSON.stringify(b ?? {}),
+          });
+          return r.json();
+        } catch {
+          return { error: "offline" };
+        }
+      };
 
       let voiceMuted = false;
       let chosenVoice = null;
@@ -506,7 +553,8 @@
       }
 
       async function refresh() {
-        const [d, q] = await Promise.all([j("/api/last"), j("/api/quiet").catch(() => ({ active: false }))]);
+        const [d, q] = await Promise.all([j("/api/last"), j("/api/quiet")]);
+        if (!d) return;
         if (d.last_message) {
           $("#msg").classList.remove("empty");
           $("#msg").textContent = "“" + d.last_message.text + "”";
@@ -533,6 +581,7 @@
       $("#speak-btn").onclick = async () => {
         speakLocal({ en: "Let me check.", hi: "ज़रा देखती हूँ।", kn: "ನೋಡುತ್ತೇನೆ." }[lang] ?? "Let me check.");
         const r = await jp("/api/run/morning_brief", { dry_run: false, lang });
+        if (!r || r.error) { setStatus("offline — try again"); return; }
         const text = r.message?.text ?? { en: "Nothing pressing right now.", hi: "अभी कुछ ज़रूरी नहीं।", kn: "ಈಗ ಏನೂ ಪ್ರಮುಖವಲ್ಲ." }[lang];
         $("#msg").classList.remove("empty");
         $("#msg").textContent = "“" + text + "”";
@@ -600,6 +649,7 @@
         setStatus("thinking…");
         try {
           const r = await jp("/api/say", { transcript: t, lang });
+          if (!r || r.error || !r.reply) { setStatus("offline — no response"); return; }
           $("#msg").classList.remove("empty");
           $("#msg").textContent = "“" + r.reply + "”";
           $("#ago").textContent = "just now";
@@ -811,8 +861,10 @@
 
       $("#demo-btn").onclick = async () => {
         const cur = await j("/api/demo/state");
+        if (!cur) { setStatus("offline — demo unavailable"); return; }
         if (cur.running) {
-          await jp("/api/demo/stop");
+          const stopped = await jp("/api/demo/stop");
+          if (stopped?.error) { setStatus("offline — demo stop failed"); return; }
           $("#demo-btn").textContent = "🎭 AURA demos herself";
           return;
         }
@@ -824,7 +876,8 @@
         voiceMuted = true;
         $("#demo-btn").textContent = "■ stop demo";
         demoSpokenAt = Date.now();
-        await jp("/api/demo/start");
+        const started = await jp("/api/demo/start");
+        if (started?.error) { setStatus("offline — demo start failed"); return; }
         if (demoPollTimer) clearInterval(demoPollTimer);
         demoPollTimer = setInterval(async () => {
           await pollDemo();

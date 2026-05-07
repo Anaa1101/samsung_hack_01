@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { config } from "./config.js";
-import { db } from "./db.js";
+import { db, pruneCaches } from "./db.js";
 import { append as auditAppend } from "./audit/log.js";
 import * as morningBrief from "./skills/morning_brief/index.js";
 import * as commuteGuardian from "./skills/commute_guardian/index.js";
@@ -21,9 +21,10 @@ type Tick = {
   description?: string;
 };
 
-type SkillRunner = (opts: { dry_run?: boolean; now?: Date }) => Promise<{
+type SkillRunner = (opts: { dry_run?: boolean; now?: Date; prewarm?: boolean }) => Promise<{
   score: { total: number };
   decision: { intervene: boolean };
+  prewarmed?: boolean;
 }>;
 
 // twin_learn isn't a "skill" in the user-facing sense, but it slots into the same scheduler.
@@ -93,11 +94,33 @@ const setLastRunStmt = db.prepare(
 );
 
 export async function runTickOnce(now: Date = new Date()): Promise<void> {
+  // ── Maintenance: prune stale cache entries on every tick ──────────────────
+  try {
+    const pruned = pruneCaches(now);
+    if (Object.values(pruned).some(n => n > 0)) {
+      console.log(`[scheduler] pruned: prewarm=${pruned.prewarm} events=${pruned.events} audit=${pruned.audit} notifs=${pruned.notifications}`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] pruneCaches failed (non-fatal):", err);
+  }
+
   const ticks = loadHeartbeat();
   for (const tick of ticks) {
     const lastRow = lastRunStmt.get(tick.id) as { last_run: string } | undefined;
     const lastRun = lastRow ? new Date(lastRow.last_run) : null;
-    if (!shouldFire(tick, now, lastRun)) continue;
+    if (!shouldFire(tick, now, lastRun)) {
+      const futureDate = new Date(now.getTime() + 10 * 60000);
+      if (shouldFire(tick, futureDate, lastRun) && !tick.dry_run) {
+        const skill = SKILLS[tick.skill];
+        if (skill) {
+          console.log(`[scheduler] prewarming tick=${tick.id} skill=${tick.skill}`);
+          skill({ dry_run: true, now: futureDate, prewarm: true }).catch(err => {
+            console.error(`[scheduler] prewarm failed for ${tick.id}:`, err);
+          });
+        }
+      }
+      continue;
+    }
     const skill = SKILLS[tick.skill];
     if (!skill) {
       console.warn(`[scheduler] no skill registered for ${tick.skill}`);

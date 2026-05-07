@@ -1,5 +1,5 @@
 import { computeScore, type ScoreBreakdown } from "../../score/compute.js";
-import { db, recordEvent } from "../../db.js";
+import { db, recordEvent, recordNotification } from "../../db.js";
 import { shouldIntervene, type GateContext, type ProposedAction } from "../../pi-engine/gate.js";
 import { applyShadow, shadowReview } from "../../pi-engine/shadow.js";
 import { critique } from "../../pi-engine/adversary.js";
@@ -22,14 +22,15 @@ export type ReminderResult = {
 
 const REMIND_WINDOW_MIN = 10;
 
-function getNextEvent(now: Date): { title: string | null; min_until: number | null } {
+function getNextEvent(now: Date): { id: number | null; title: string | null; min_until: number | null } {
   const row = db
     .prepare(
-      "SELECT title, start_ts FROM calendar WHERE start_ts > ? ORDER BY start_ts ASC LIMIT 1",
+      "SELECT id, title, start_ts FROM calendar WHERE start_ts > ? ORDER BY start_ts ASC LIMIT 1",
     )
-    .get(now.toISOString()) as { title: string; start_ts: string } | undefined;
-  if (!row) return { title: null, min_until: null };
+    .get(now.toISOString()) as { id: number; title: string; start_ts: string } | undefined;
+  if (!row) return { id: null, title: null, min_until: null };
   return {
+    id: row.id,
     title: row.title,
     min_until: Math.round((new Date(row.start_ts).getTime() - now.getTime()) / 60000),
   };
@@ -84,6 +85,7 @@ export async function run(
         reason: next.title === null ? "no event on deck" : `next event in ${next.min_until} min, outside window`,
         calibration_status: "bootstrapping" as const,
         n_samples: 0,
+        fusion: { p_need: 0, signals: { calendar_density: 0, step_deficit: 0, notif_burden: 0, hrv_stress: NaN, time_urgency: 0 }, weights: { calendar_density: 0, step_deficit: 0, notif_burden: 0, hrv_stress: 0, time_urgency: 0 }, method: "fallback" as const },
       },
       next_event: next,
       dry_run,
@@ -106,6 +108,7 @@ export async function run(
         reason: "already reminded for this event in the last 15 min",
         calibration_status: "bootstrapping" as const,
         n_samples: 0,
+        fusion: { p_need: 0, signals: { calendar_density: 0, step_deficit: 0, notif_burden: 0, hrv_stress: NaN, time_urgency: 0 }, weights: { calendar_density: 0, step_deficit: 0, notif_burden: 0, hrv_stress: 0, time_urgency: 0 }, method: "fallback" as const },
       },
       next_event: next,
       dry_run,
@@ -125,7 +128,7 @@ export async function run(
     next_event_title: next.title,
   };
 
-  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin());
+  let decision = shouldIntervene(action, ctx, loadSoul(), loadTwin(), score);
   if (decision.mode === "slow" && !dry_run) {
     const v = await shadowReview(action, ctx, decision);
     decision = applyShadow(decision, v);
@@ -196,11 +199,17 @@ export async function run(
       "meeting_reminder",
       null,
       null,
-      JSON.stringify({ text: llm.text, event: next.title, min_until: next.min_until }),
+      JSON.stringify({
+        text: llm.text,
+        event: next.title,
+        min_until: next.min_until,
+        event_id: next.id,
+      }),
     );
   const skill_run_id = Number(ins.lastInsertRowid);
 
   recordEvent("notification_sent", { skill: "meeting_reminder", channel: sent.channel });
+  recordNotification("meeting_reminder");
   auditAppend("notification_sent", {
     skill: "meeting_reminder",
     channel: sent.channel,

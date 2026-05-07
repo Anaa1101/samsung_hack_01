@@ -9,6 +9,7 @@ import type { Soul, SoulContext } from "../soul.js";
 import type { TwinPatterns } from "../twin.js";
 import type { ScoreBreakdown } from "../score/compute.js";
 import { calibrateCosts, toHourBucket } from "./calibration.js";
+import { fuseNeed, type FusionResult } from "./fusion.js";
 
 export type GateContext = {
   now: Date;
@@ -36,6 +37,7 @@ export type GateDecision = {
   reason: string;
   calibration_status: "calibrated" | "bootstrapping";
   n_samples: number;   // labelled samples used; < MIN_SAMPLES means static fallback
+  fusion: FusionResult; // Extension 5: cross-modal fusion metadata
 };
 
 const MARGIN = 0.05;
@@ -63,20 +65,14 @@ function classifyContext(ctx: GateContext, soul: Soul): SoulContext {
 }
 
 // p_need: how likely the user actually needs this nudge right now.
-// Driven by readiness score (low score → more help needed) plus situational urgency.
-function estimateNeed(action: ProposedAction, ctx: GateContext): number {
-  const lowReadiness = 1 - ctx.score.total / 100;
-  let situational = 0;
-  if (ctx.next_event_min_until !== null && ctx.next_event_min_until <= 30) {
-    situational = 0.6;
-  } else if (ctx.next_event_min_until !== null && ctx.next_event_min_until <= 60) {
-    situational = 0.35;
-  }
-  if (action.importance === "critical") situational = Math.max(situational, 0.9);
-  if (action.importance === "high") situational = Math.max(situational, 0.6);
-  // Combine: take the max so a high-readiness user still gets pre-meeting nudges.
-  const raw = Math.max(lowReadiness * 0.7, situational);
-  return Math.min(1, raw);
+// Uses cross-modal attention fusion (Extension 5) across calendar density,
+// physical activity, notification burden, HRV stress, and time urgency.
+function estimateNeed(
+  action: ProposedAction,
+  ctx: GateContext,
+  score: ScoreBreakdown,
+): FusionResult {
+  return fuseNeed(ctx.now, ctx.next_event_min_until, score.total);
 }
 
 // p_accept: if AURA spoke now, how likely is the user to accept this nudge?
@@ -97,6 +93,7 @@ export function shouldIntervene(
   ctx: GateContext,
   soul: Soul,
   twin: TwinPatterns,
+  score: ScoreBreakdown,
 ): GateDecision {
   const context_label = classifyContext(ctx, soul);
 
@@ -109,7 +106,11 @@ export function shouldIntervene(
   const bucket = toHourBucket(ctx.now.getHours());
   const cal = calibrateCosts(action.skill, bucket, staticWeights);
 
-  const p_need = estimateNeed(action, ctx);
+  const fusion = estimateNeed(action, ctx, score);
+  let p_need = fusion.p_need;
+  // Critical/high importance can override the fused estimate upward.
+  if (action.importance === "critical") p_need = Math.max(p_need, 0.9);
+  if (action.importance === "high")     p_need = Math.max(p_need, 0.6);
   const p_accept = estimateAccept(action, ctx, twin);
 
   const c_fa = cal.c_fa;
@@ -139,6 +140,7 @@ export function shouldIntervene(
       reason: "critical override",
       calibration_status,
       n_samples,
+      fusion,
     };
   }
 
@@ -156,6 +158,7 @@ export function shouldIntervene(
       reason: `fast accept: utility ${utility.toFixed(3)} > tau+margin ${(tau + MARGIN).toFixed(3)}`,
       calibration_status,
       n_samples,
+      fusion,
     };
   }
   if (utility < tau - MARGIN) {
@@ -172,6 +175,7 @@ export function shouldIntervene(
       reason: `fast reject: utility ${utility.toFixed(3)} < tau-margin ${(tau - MARGIN).toFixed(3)}`,
       calibration_status,
       n_samples,
+      fusion,
     };
   }
 
@@ -195,5 +199,6 @@ export function shouldIntervene(
     } cost_if_speak ${cost_if_speak.toFixed(3)}`,
     calibration_status,
     n_samples,
+    fusion,
   };
 }

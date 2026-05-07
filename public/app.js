@@ -1,21 +1,95 @@
 const $ = (s) => document.querySelector(s);
 
+const TUNNEL_HEADERS = { "bypass-tunnel-reminder": "true" };
+const CACHE_PREFIX = "aura-cache:";
+
+function cacheKey(url) {
+  return `${CACHE_PREFIX}${url}`;
+}
+
+function cacheRead(url) {
+  try {
+    const raw = localStorage.getItem(cacheKey(url));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheWrite(url, data) {
+  try {
+    localStorage.setItem(cacheKey(url), JSON.stringify(data));
+  } catch {}
+}
+
+const EMPTY_SCORE = {
+  total: 0,
+  components: {
+    sleep: 0,
+    morning_activity: 0,
+    calendar_prep: 0,
+    commute_buffer: 0,
+    notifications: 0,
+    focus_time: 0,
+    meeting_load: 0,
+  },
+  inputs: {
+    sleep_min: 0,
+    morning_steps: 0,
+    next_event_min_until: null,
+    notif_24h: 0,
+    meeting_minutes_today: 0,
+    free_blocks_min: 0,
+    commute_buffer_min: 0,
+  },
+};
+
+function fallbackFor(url) {
+  if (url.includes("/api/score")) return EMPTY_SCORE;
+  if (url.includes("/api/calendar")) return [];
+  if (url.includes("/api/audit")) return { verified: { ok: true }, entries: [] };
+  if (url.includes("/api/twin/patterns")) {
+    return {
+      wake_time: { median: "--:--", trend: "stable", confidence: 0 },
+      sleep_duration: { median_min: 0, recent_avg_min: 0, trend: "stable" },
+      routines: [],
+      acceptance: {},
+      notif_24h: 0,
+      burden_score: 0,
+    };
+  }
+  if (url.includes("/api/skill_runs")) return [];
+  if (url.includes("/health")) return { ollama: "offline", model: null };
+  return {};
+}
+
 function fmtTime(d = new Date()) {
   return d.toTimeString().slice(0, 5);
 }
 
 async function jget(url) {
-  const r = await fetch(url);
-  return r.json();
+  try {
+    const r = await fetch(url, { headers: TUNNEL_HEADERS });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    cacheWrite(url, data);
+    return data;
+  } catch {
+    return cacheRead(url) ?? fallbackFor(url);
+  }
 }
 
 async function jpost(url, body = {}) {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return r.json();
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
+      body: JSON.stringify(body),
+    });
+    return r.json();
+  } catch {
+    return { error: "offline" };
+  }
 }
 
 const COMP_LABELS = {
@@ -62,7 +136,7 @@ function renderCalendar(events) {
     const btn = document.createElement("button");
     btn.textContent = "x";
     btn.onclick = async () => {
-      await fetch(`/api/calendar/${e.id}`, { method: "DELETE" });
+      await fetch(`/api/calendar/${e.id}`, { method: "DELETE", headers: TUNNEL_HEADERS });
       await refresh();
     };
     li.appendChild(btn);
