@@ -1,0 +1,58 @@
+#!/usr/bin/env expect -f
+# Drive `bubblewrap build` non-interactively. Feeds keystore + key passwords
+# (both "android" — generated with these defaults).
+
+set timeout 1800
+log_user 1
+
+set project_dir [lindex $argv 0]
+cd $project_dir
+
+spawn npx --prefix .. @bubblewrap/cli build
+
+expect {
+    -re {(?i)password.*key.*store.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)keystore.*password.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)password.*alias.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)password.*key.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)\? .+password.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)would you like .+\?\s*\(Y/n\)} {
+        send "\r"
+        exp_continue
+    }
+    -re {(?i)would you like .+\?\s*\(y/N\)} {
+        send "\r"
+        exp_continue
+    }
+    -re {(?i)\? .+\?\s*\(Y/n\)} {
+        send "\r"
+        exp_continue
+    }
+    -re {(?i)\? .+\?\s*\(y/N\)} {
+        send "\r"
+        exp_continue
+    }
+    eof {
+        catch wait result
+        exit [lindex $result 3]
+    }
+    timeout {
+        puts stderr "TIMEOUT in bubblewrap build"
+        exit 2
+    }
+}

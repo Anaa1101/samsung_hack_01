@@ -1,0 +1,84 @@
+#!/usr/bin/env expect -f
+# Drive `bubblewrap init` non-interactively. Accepts most defaults, supplies
+# keystore passwords ("android" / "android" — debug-grade, fine for sideload).
+
+set timeout 600
+log_user 1
+
+set manifest_url [lindex $argv 0]
+set project_dir  [lindex $argv 1]
+
+cd $project_dir
+
+spawn npx --prefix .. @bubblewrap/cli init --manifest=$manifest_url --directory=.
+
+expect {
+    -re {(?i)password.*for.*key.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)password.*key.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)keystore.*password.*:} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)password\s*:\s*$} {
+        send "android\r"
+        exp_continue
+    }
+    -re {(?i)first and last name.*:} {
+        send "AURA\r"
+        exp_continue
+    }
+    -re {(?i)organizational unit.*:} {
+        send "AURA\r"
+        exp_continue
+    }
+    -re {(?i)organization.*:} {
+        send "AURA\r"
+        exp_continue
+    }
+    -re {(?i)(city|locality).*:} {
+        send "City\r"
+        exp_continue
+    }
+    -re {(?i)(state|province).*:} {
+        send "State\r"
+        exp_continue
+    }
+    -re {(?i)country.*code.*:} {
+        send "US\r"
+        exp_continue
+    }
+    -re {(?i)is .+ correct.*\?} {
+        send "yes\r"
+        exp_continue
+    }
+    -re {(?i)\? .+\?\s*\(Y/n\)} {
+        send "\r"
+        exp_continue
+    }
+    -re {(?i)\? .+\?\s*\(y/N\)} {
+        send "\r"
+        exp_continue
+    }
+    -re {\? .+:} {
+        send "\r"
+        exp_continue
+    }
+    -re {Project generated successfully} {
+        # success — keep reading until EOF
+        exp_continue
+    }
+    eof {
+        catch wait result
+        exit [lindex $result 3]
+    }
+    timeout {
+        puts stderr "TIMEOUT waiting for prompt"
+        exit 2
+    }
+}

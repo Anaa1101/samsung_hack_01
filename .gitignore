@@ -6,4 +6,8 @@ data/aura.db-shm
 .DS_Store
 dist
 .claude
+*.keystore
+android-build/aura-twa/build/
+android-build/aura-twa/.gradle/
+android-build/aura-twa/app/build/
 
