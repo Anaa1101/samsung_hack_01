@@ -15,7 +15,7 @@ export type ShadowVerdict = {
   recommendation: "speak" | "silent" | null;
   confidence: number;
   reasoning: string;
-  source: "ollama" | "fallback";
+  source: "ollama" | "gemini" | "fallback";
 };
 
 const FALLBACK: ShadowVerdict = {
@@ -97,8 +97,8 @@ export async function shadowReview(
   // Override only if Shadow disagrees AND is highly confident.
   const override = !agreed && parsed.confidence >= 0.7;
 
-  // consulted is true only when the LLM actually responded; fallback means Ollama was offline.
-  const consulted = llm.source === "ollama";
+  // consulted is true only when an LLM actually responded.
+  const consulted = llm.source === "ollama" || llm.source === "gemini";
 
   const verdict: ShadowVerdict = {
     consulted,

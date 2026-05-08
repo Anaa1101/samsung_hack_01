@@ -21,8 +21,8 @@ plugins {
 }
 
 def twaManifest = [
-    applicationId: 'com.trycloudflare.abraham_wage_grace_harold.twa',
-    hostName: 'abraham-wage-grace-harold.trycloudflare.com', // The domain being opened in the TWA.
+    applicationId: 'com.ngrok.aura.twa',
+    hostName: 'false-busload-squabble.ngrok-free.dev', // The domain being opened in the TWA.
     launchUrl: '/simple', // The start path for the TWA. Must be relative to the domain.
     name: 'AURA', // The application name.
     launcherName: 'AURA', // The name shown on the Android Launcher.
@@ -51,12 +51,12 @@ def twaManifest = [
 ]
 
 android {
-    compileSdkVersion 36
-    namespace "com.trycloudflare.abraham_wage_grace_harold.twa"
+    compileSdk 36
+    namespace "com.ngrok.aura.twa"
     defaultConfig {
-        applicationId "com.trycloudflare.abraham_wage_grace_harold.twa"
-        minSdkVersion 21
-        targetSdkVersion 35
+        applicationId "com.ngrok.aura.twa"
+        minSdk 21
+        targetSdk 35
         versionCode 1
         versionName "1"
 
@@ -76,12 +76,12 @@ android {
             // The URL the Web Manifest for the Progressive Web App that the TWA points to. This
             // is used by Chrome OS and Meta Quest to open the Web version of the PWA instead of
             // the TWA, as it will probably give a better user experience for non-mobile devices.
-            resValue "string", "webManifestUrl", 'https://abraham-wage-grace-harold.trycloudflare.com/manifest.webmanifest'
+            resValue "string", "webManifestUrl", 'https://false-busload-squabble.ngrok-free.dev/manifest.webmanifest'
         
 
         
             // This is used by Meta Quest.
-            resValue "string", "fullScopeUrl", 'https://abraham-wage-grace-harold.trycloudflare.com/'
+            resValue "string", "fullScopeUrl", 'https://false-busload-squabble.ngrok-free.dev/'
         
 
         
@@ -150,9 +150,18 @@ android {
 
         
     }
+    signingConfigs {
+        release {
+            storeFile file('../android.keystore')
+            storePassword 'android'
+            keyAlias 'android'
+            keyPassword 'android'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {

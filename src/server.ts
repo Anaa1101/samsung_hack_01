@@ -98,6 +98,7 @@ function getDbRowCounts(): Record<string, number> {
 
 export function createServer(): express.Express {
   const app = express();
+  app.set("trust proxy", 1);
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   // Wildcard CORS: this is a single-user local daemon, not a public server.

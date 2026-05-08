@@ -28,6 +28,22 @@ import { append as auditAppend } from "../audit/log.js";
 import * as morningBrief from "../skills/morning_brief/index.js";
 import * as commuteGuardian from "../skills/commute_guardian/index.js";
 import { type Lang } from "../i18n.js";
+import { getSystemState, formatContextForLLM } from "./context.js";
+
+const MAX_MEMORY = 5;
+
+function getMemory(): Array<{ role: "user" | "aura"; text: string }> {
+  const rows = db.prepare("SELECT role, text FROM chat_history ORDER BY ts DESC LIMIT ?")
+    .all(MAX_MEMORY * 2) as Array<{ role: string; text: string }>;
+  return rows.reverse().map(r => ({ role: r.role as "user" | "aura", text: r.text }));
+}
+
+function addToMemory(role: "user" | "aura", text: string) {
+  db.prepare("INSERT INTO chat_history (ts, role, text) VALUES (?, ?, ?)")
+    .run(new Date().toISOString(), role, text);
+  // Keep the table clean: delete everything beyond the last 30 messages
+  db.prepare("DELETE FROM chat_history WHERE id NOT IN (SELECT id FROM chat_history ORDER BY ts DESC LIMIT 30)").run();
+}
 
 export type IntentResult = {
   intent: string;
@@ -108,7 +124,10 @@ function scheduleTimer(label: string, minutes: number): void {
 
 export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<IntentResult> {
   const transcript = clean(strip(transcriptRaw));
+  addToMemory("user", transcriptRaw);
+
   const log = (r: IntentResult): IntentResult => {
+    addToMemory("aura", r.reply);
     auditAppend("intent", { transcript: transcriptRaw, ...r });
     return r;
   };
@@ -148,10 +167,13 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     return log({ intent: "date", reply: pickReply(lang, `Today is ${d}.`, `आज ${d} है।`, `ಇಂದು ${d}.`) });
   }
 
-  // ---- Math ----
-  const math = transcript.match(/^(what'?s |whats |calculate |compute |solve )?(.+)/);
-  if (math && /[\d+\-*/().]|plus|minus|times|divided/.test(transcript) && /[0-9]/.test(transcript)) {
-    const result = safeEvalMath(math[2] ?? transcript);
+  // ---- Math (Only if it looks like a pure calculation or starts with math keywords) ----
+  const mathMatch = transcript.match(/^(calculate|compute|solve|what is|whats|what'?s)\s+(.+)/);
+  const isPureMath = /^[\d+\-*/().\s]+$/.test(transcript) && /[+\-*/]/.test(transcript);
+  
+  if (mathMatch || isPureMath) {
+    const expr = mathMatch ? mathMatch[2] : transcript;
+    const result = safeEvalMath(expr);
     if (result !== null) {
       return log({
         intent: "math",
@@ -248,7 +270,6 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     const topic = wiki[2];
     const r = await wikiSummary(topic);
     if (r.ok) return log({ intent: "wiki", reply: r.text, side_effect: { url: r.url } });
-    // fall through — let lower handlers try, else search
   }
 
   // ---- Define ----
@@ -279,16 +300,25 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     return log({ intent: "open_url", reply: action.message, action });
   }
 
-  // ---- Open app ----
-  const openAppMatch = transcript.match(
-    /^(open|launch|start)\s+(spotify|notion|slack|chrome|safari|notes|calendar|mail|messages|finder|terminal|vs code|vscode|visual studio code|cursor|zoom|arc|obsidian|figma)\b/,
-  );
-  if (openAppMatch) {
-    const action = openApp(openAppMatch[2]);
-    return log({ intent: "open_app", reply: action.message, action });
+  // ---- Knowledge / Routine / Health questions (Pass to LLM) ----
+  if (
+    /^(what do you know|tell me about|how am i|what'?s my|status|how'?s my day|routine|habit|pattern|readiness)/.test(
+      transcript,
+    )
+  ) {
+     // Skip regex section and let LLM at the bottom handle it.
+  } else {
+    // ---- Open app ----
+    const openAppMatch = transcript.match(
+      /^(open|launch|start)\s+(spotify|notion|slack|chrome|safari|notes|calendar|mail|messages|finder|terminal|vs code|vscode|visual studio code|cursor|zoom|arc|obsidian|figma)\b/,
+    );
+    if (openAppMatch) {
+      const action = openApp(openAppMatch[2]);
+      return log({ intent: "open_app", reply: action.message, action });
+    }
   }
 
-  // ---- Search ----
+  // ---- Search (Explicit) ----
   const search = transcript.match(
     /^(search|google|look up|find|when is|when'?s|where is|where'?s)\s+(.+)/,
   );
@@ -298,7 +328,7 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     return log({ intent: "search", reply: action.message, action });
   }
 
-  // ---- Status ----
+  // ---- Status / Score ----
   if (/(score|readiness|how am i|how'?s my day)/.test(transcript)) {
     const score = computeScore();
     return log({
@@ -313,6 +343,7 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     });
   }
 
+  // ---- Meetings ----
   if (/(next meeting|next event|whats next|what'?s next|agenda)/.test(transcript)) {
     const next = db
       .prepare(
@@ -354,48 +385,67 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
     return log({ intent: "meetings_today", reply: list });
   }
 
+  // ---- Clear Calendar ----
+  if (/(clear calendar|delete all meetings|reset my schedule)/.test(transcript)) {
+    db.prepare("DELETE FROM calendar").run();
+    return log({
+      intent: "clear_calendar",
+      reply: pickReply(lang, "Calendar cleared.", "कैलेंडर साफ कर दिया।", "ಕ್ಯಾಲೆಂಡರ್ ಅಳಿಸಲಾಗಿದೆ."),
+    });
+  }
+
+  // ---- Add Event ----
+  const addEventMatch = transcript.match(/^(add|schedule|put|remind me about)\s+(.+?)\s+(at|on|for)\s+(.+)/);
+  if (addEventMatch) {
+    const title = addEventMatch[2].trim();
+    const timeStr = addEventMatch[4].trim();
+    let date = new Date();
+    if (timeStr.includes("tomorrow")) date = new Date(Date.now() + 24 * 3600000);
+    const timeMatch = timeStr.match(/(\d+)(?::(\d+))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      let h = parseInt(timeMatch[1]);
+      const m = parseInt(timeMatch[2] || "0");
+      const ampm = (timeMatch[3] || "").toLowerCase();
+      if (ampm === "pm" && h < 12) h += 12;
+      if (ampm === "am" && h === 12) h = 0;
+      date.setHours(h, m, 0, 0);
+      db.prepare("INSERT INTO calendar (start_ts, end_ts, title) VALUES (?, ?, ?)")
+        .run(date.toISOString(), new Date(date.getTime() + 3600000).toISOString(), title);
+      const displayTime = `${h % 12 || 12}:${m.toString().padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+      return log({
+        intent: "calendar_add",
+        reply: pickReply(lang, `Scheduled: ${title} for ${displayTime}.`, `शेड्यूल किया: ${title}, ${displayTime} के लिए।`, `ನಿಗದಿಪಡಿಸಲಾಗಿದೆ: ${title}, ${displayTime} ಕ್ಕ್ಕೆ.`),
+      });
+    }
+  }
+
+  // ---- Steps ----
+  if (/(how many steps|step count|walking distance)/.test(transcript)) {
+    const today = localDayBounds(new Date());
+    const row = db.prepare("SELECT SUM(count) as total FROM steps WHERE date = ?")
+      .get(today.start.split("T")[0]) as { total: number } | undefined;
+    const count = row?.total || 0;
+    return log({
+      intent: "health_stats",
+      reply: pickReply(lang, `You've taken ${count} steps today.`, `आज आपने ${count} कदम चले हैं।`, `ಇಂದು ನೀವು ${count} ಹೆಜ್ಜೆಗಳನ್ನು ನಡೆದಿದ್ದೀರಿ.`),
+    });
+  }
+
   if (/(weather|rain|temperature|hot|cold)/.test(transcript)) {
     const w = await getWeather();
     return log({
       intent: "weather",
-      reply: pickReply(
-        lang,
-        `It's ${Math.round(w.temp_c)} degrees, ${w.is_raining_soon ? "rain expected soon" : "no rain expected"}.`,
-        `तापमान ${Math.round(w.temp_c)} डिग्री, ${w.is_raining_soon ? "बारिश की संभावना है" : "बारिश नहीं"}।`,
-        `${Math.round(w.temp_c)} ಡಿಗ್ರಿ, ${w.is_raining_soon ? "ಮಳೆ ಬರಬಹುದು" : "ಮಳೆ ಇಲ್ಲ"}.`,
-      ),
+      reply: pickReply(lang, `It's ${Math.round(w.temp_c)} degrees.`, `तापमान ${Math.round(w.temp_c)} डिग्री है।`, `${Math.round(w.temp_c)} ಡಿಗ್ರಿ ಇದೆ.`),
       side_effect: { weather: w },
     });
   }
 
-  // ---- Trigger skills on demand ----
-  if (/(brief|morning brief|tell me about my day|how does my day look)/.test(transcript)) {
+  // ---- Trigger skills (Explicit) ----
+  if (transcript === "run brief" || transcript === "give me a brief" || transcript === "morning brief now") {
     const r = await morningBrief.run({ dry_run: false, lang });
     return log({
       intent: "run_morning_brief",
-      reply: r.message?.text ?? "Nothing to report.",
-      side_effect: { decision: r.decision, score: r.score.total },
-    });
-  }
-  if (/(commute|should i leave|when do i leave|leaving)/.test(transcript)) {
-    const r = await commuteGuardian.run({ dry_run: false, lang });
-    return log({
-      intent: "run_commute",
-      reply: r.message?.text ?? "Nothing to flag for the commute right now.",
-      side_effect: { decision: r.decision, recommendation: r.recommendation },
-    });
-  }
-
-  // ---- Capabilities / help ----
-  if (/(what can you do|what do you do|your capabilities|capabilities|^help$|how can you help|what are you good at)/.test(transcript)) {
-    return log({
-      intent: "capabilities",
-      reply: pickReply(
-        lang,
-        "Quite a bit. I brief your day, remind you about meetings, set timers, take notes, search Wikipedia, define words, tell jokes, control your Mac volume, lock your screen, switch to Hindi or Kannada, and stay quiet when you ask. The interesting part: I decide when to speak first instead of waiting for you. Want me to demo myself? Just say 'demo yourself'.",
-        "बहुत कुछ। मैं आपका दिन ब्रीफ़ कर सकती हूँ, मीटिंग याद दिला सकती हूँ, टाइमर सेट कर सकती हूँ, नोट्स ले सकती हूँ, विकिपीडिया खोज सकती हूँ, और चुप भी रह सकती हूँ। 'demo yourself' कहें तो मैं ख़ुद डेमो करूँगी।",
-        "ಬಹಳಷ್ಟು. ನಾನು ನಿಮ್ಮ ದಿನವನ್ನು ಬ್ರೀಫ್ ಮಾಡಬಲ್ಲೆ, ಸಭೆಗಳನ್ನು ನೆನಪಿಸಬಲ್ಲೆ, ಟೈಮರ್ ಸೆಟ್ ಮಾಡಬಲ್ಲೆ, ಟಿಪ್ಪಣಿಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಬಲ್ಲೆ, ಮತ್ತು ಸುಮ್ಮನಿರಲೂ ಬಲ್ಲೆ. 'demo yourself' ಎಂದು ಹೇಳಿ.",
-      ),
+      reply: r.message?.text ?? "Nothing new to report.",
     });
   }
 
@@ -403,31 +453,7 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
   if (/(who are you|what'?s your name|whats your name|tell me about yourself|what are you)/.test(transcript)) {
     return log({
       intent: "identity",
-      reply: pickReply(
-        lang,
-        "I'm AURA. A proactive personal agent. Other assistants wait for you to ask — I watch your day and decide when staying silent is worse than speaking. I run on your laptop, configured by four small files, with every decision in an audit log.",
-        "मैं AURA हूँ। एक प्रोएक्टिव असिस्टेंट। बाक़ी असिस्टेंट आपके पूछने का इंतज़ार करते हैं — मैं ख़ुद देखती हूँ और तय करती हूँ कि कब बोलना है।",
-        "ನಾನು AURA. ಒಂದು ಪ್ರೊಆಕ್ಟಿವ್ ಸಹಾಯಕಿ. ಇತರ ಸಹಾಯಕರು ನೀವು ಕೇಳುವವರೆಗೆ ಕಾಯುತ್ತಾರೆ — ನಾನು ನಿಮ್ಮ ದಿನವನ್ನು ಗಮನಿಸಿ ಯಾವಾಗ ಮಾತನಾಡಬೇಕೆಂದು ನಿರ್ಧರಿಸುತ್ತೇನೆ.",
-      ),
-    });
-  }
-
-  // ---- Trigger auto-demo by voice ----
-  if (/(demo yourself|show me what you can do|run the demo|start the demo|pitch yourself)/.test(transcript)) {
-    // Lazy import so we don't pull demo runner into the hot path.
-    const mod = await import("../demo/runner.js");
-    if (!mod.getDemoStatus().running) void mod.startDemo();
-    return log({
-      intent: "start_demo",
-      reply: pickReply(lang, "Watch.", "देखिए।", "ನೋಡಿ."),
-    });
-  }
-
-  // ---- Are you there? ----
-  if (/(are you there|are you listening|you alive|you up|you with me)/.test(transcript)) {
-    return log({
-      intent: "presence",
-      reply: pickReply(lang, "Right here.", "हाँ, यहीं हूँ।", "ಇಲ್ಲಿಯೇ ಇದ್ದೇನೆ."),
+      reply: pickReply(lang, "I'm AURA. Your proactive digital twin.", "मैं AURA हूँ। आपकी डिजिटल ट्विन।", "ನಾನು AURA. ನಿಮ್ಮ ಡಿಜಿಟಲ್ ಟ್ವಿನ್."),
     });
   }
 
@@ -435,107 +461,56 @@ export async function route(transcriptRaw: string, lang: Lang = "en"): Promise<I
   if (/^(hi|hello|hey|sup|yo)$/.test(transcript)) {
     return log({
       intent: "greeting",
-      reply: pickReply(
-        lang,
-        "I'm here. What do you need?",
-        "मैं यहाँ हूँ। क्या चाहिए?",
-        "ನಾನು ಇಲ್ಲಿದ್ದೇನೆ. ಏನು ಬೇಕು?",
-      ),
-    });
-  }
-  if (/(thanks|thank you|good job|nice)/.test(transcript)) {
-    return log({
-      intent: "thanks",
-      reply: pickReply(lang, "Anytime.", "कभी भी।", "ಯಾವಾಗ ಬೇಕಾದರೂ."),
+      reply: pickReply(lang, "I'm here. What's on your mind?", "मैं यहाँ हूँ। क्या बात है?", "ನಾನು ಇಲ್ಲಿದ್ದೇನೆ. ಏನು ಸಮಾಚಾರ?"),
     });
   }
 
-  // ---- Unit conversion (offline) ----
-  const conv = transcript.match(
-    /(?:how many|convert)?\s*(\d+(?:\.\d+)?)\s*(km|miles?|kg|lbs?|pounds?|c|f|celsius|fahrenheit|cm|inches?|in|m|ft|feet|kmh|mph)\s*(?:in|to|=)\s*(km|miles?|kg|lbs?|pounds?|c|f|celsius|fahrenheit|cm|inches?|in|m|ft|feet|kmh|mph)/,
-  );
-  if (conv) {
-    const n = Number(conv[1]);
-    const from = conv[2].toLowerCase().replace(/s$/, "");
-    const to = conv[3].toLowerCase().replace(/s$/, "");
-    const result = convertUnits(n, from, to);
-    if (result !== null) {
-      return log({
-        intent: "convert",
-        reply: pickReply(
-          lang,
-          `${n} ${conv[2]} is ${result.toFixed(2)} ${conv[3]}.`,
-          `${n} ${conv[2]} = ${result.toFixed(2)} ${conv[3]}.`,
-          `${n} ${conv[2]} = ${result.toFixed(2)} ${conv[3]}.`,
-        ),
-      });
-    }
-  }
+  // ---- Main LLM Brain (Gemini/Ollama) ----
+  if (config.ollama.url || config.gemini.apiKey) {
+    const state = getSystemState();
+    const contextStr = formatContextForLLM(state);
+    const memory = getMemory();
+    const memoryStr = memory
+      .map((m) => `${m.role === "user" ? "User" : "AURA"}: ${m.text}`)
+      .join("\n");
 
-  // ---- Coin / dice / random (offline, fun) ----
-  if (/(flip a coin|coin flip|toss a coin)/.test(transcript)) {
-    const r = Math.random() < 0.5 ? "heads" : "tails";
-    return log({
-      intent: "coin",
-      reply: pickReply(lang, r === "heads" ? "Heads." : "Tails.", r === "heads" ? "हेड्स।" : "टेल्स।", r === "heads" ? "ಹೆಡ್ಸ್." : "ಟೈಲ್ಸ್."),
-    });
-  }
-  if (/(roll a (die|dice)|throw a die|dice)/.test(transcript)) {
-    const r = Math.floor(Math.random() * 6) + 1;
-    return log({ intent: "dice", reply: `${r}.` });
-  }
-  const rand = transcript.match(/random number (?:between |from )?(\d+)\s*(?:and|to)\s*(\d+)/);
-  if (rand) {
-    const lo = Number(rand[1]);
-    const hi = Number(rand[2]);
-    const n = Math.floor(Math.random() * (hi - lo + 1)) + lo;
-    return log({ intent: "random", reply: `${n}.` });
-  }
-
-  // ---- Spell ----
-  const spell = transcript.match(/(?:how do you )?spell\s+(\w+)/);
-  if (spell) {
-    const w = spell[1];
-    return log({ intent: "spell", reply: w.toUpperCase().split("").join(" ") + "." });
-  }
-
-  // ---- Hard fallback: try Ollama first (acts like Jarvis), then web search ----
-  if (config.ollama.url) {
     const langInstr =
       lang === "hi"
         ? "Reply in Hindi (Devanagari)."
         : lang === "kn"
           ? "Reply in Kannada (ಕನ್ನಡ)."
           : "Reply in English.";
+
     const r = await narrate({
-      system: `You are AURA, a helpful conversational assistant running locally on the user's laptop. ${langInstr} Be concise — under 280 characters. Answer directly. If you genuinely don't know, say so honestly. Never apologize, never say "as an AI".`,
+      system: `You are AURA, a world-class proactive life assistant. 
+${langInstr}
+Personality: Professional, empathetic, and deeply integrated into the user's patterns.
+
+KNOWLEDGE BASE:
+${contextStr}
+
+CONVERSATION HISTORY:
+${memoryStr}
+
+MISSION:
+- Answer questions about the user's habits, routines (from TWIN.md), health, and schedule.
+- Be concise (under 200 chars).
+- If you can't perform an action, explain why and offer an alternative (like taking a note).
+- Never say you are an AI. You are AURA.`,
       user: transcriptRaw,
-      fallback: "",
+      fallback: "I'm processing a lot of data right now—could you try that again in a second?",
     });
-    if (r.text && r.text.length > 4 && r.source === "ollama") {
+
+    if (r.text && r.text.length > 2) {
       return log({ intent: "llm_answer", reply: r.text });
     }
   }
 
-  // ---- Final fallback: web search + hint about Ollama ----
+  // ---- Final Fallback (Search) ----
   const action = webSearch(transcriptRaw);
-  const hint = config.ollama.url
-    ? ""
-    : pickReply(
-        lang,
-        " Tip: install Ollama and I can answer this offline.",
-        " इंस्टॉल करें Ollama, मैं ऑफ़लाइन जवाब दूँगी।",
-        " Ollama ಇನ್‌ಸ್ಟಾಲ್ ಮಾಡಿ — ನಾನು ಆಫ್‌ಲೈನ್ ಉತ್ತರಿಸುತ್ತೇನೆ.",
-      );
   return log({
     intent: "fallback_search",
-    reply:
-      pickReply(
-        lang,
-        `Let me search that for you.`,
-        `गूगल पर देखती हूँ।`,
-        `ಗೂಗಲ್‌ನಲ್ಲಿ ಹುಡುಕುತ್ತೇನೆ.`,
-      ) + hint,
+    reply: pickReply(lang, "Let me look that up for you.", "गूगल पर देखती हूँ।", "ನಾನು ಹುಡುಕುತ್ತೇನೆ."),
     action,
   });
 }
@@ -553,18 +528,14 @@ function convertUnits(n: number, from: string, to: string): number | null {
   };
   const f = norm(from);
   const t = norm(to);
-  // Length: km, mile, m, cm, in, ft
   const toMeters: Record<string, number> = {
     km: 1000, mile: 1609.344, m: 1, cm: 0.01, in: 0.0254, ft: 0.3048,
   };
   if (toMeters[f] && toMeters[t]) return (n * toMeters[f]) / toMeters[t];
-  // Mass
   const toKg: Record<string, number> = { kg: 1, lb: 0.453592 };
   if (toKg[f] && toKg[t]) return (n * toKg[f]) / toKg[t];
-  // Speed
   if ((f === "kmh" && t === "mph")) return n * 0.621371;
   if (f === "mph" && t === "kmh") return n / 0.621371;
-  // Temperature
   if (f === "c" && t === "f") return (n * 9) / 5 + 32;
   if (f === "f" && t === "c") return ((n - 32) * 5) / 9;
   return null;

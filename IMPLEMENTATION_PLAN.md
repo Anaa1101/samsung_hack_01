@@ -1,22 +1,45 @@
 # AURA — Implementation Plan & System Reference
 
-> **Last updated:** 2026-05-07  
-> **Project:** Samsung PRISM Hackathon — Proactive Ambient Agent  
-> **Repository:** `d:\SAMSUNG_PRISM\p1\samsung_hack_01`  
-> **Runtime:** Node.js 22+ (experimental SQLite), TypeScript 5.7, tsx  
-> **Status:** Backend 100% complete. Frontend in Lovable (external). Android port pending.
+> **Last updated:** 2026-05-08 (audit pass — APK-WIP branch)
+> **Project:** Samsung PRISM Hackathon — Proactive Ambient Agent
+> **Branch:** `samsung_hack_01-apk-build-wip` (worktree of main)
+> **Runtime:** Node.js 22+ (experimental SQLite), TypeScript 5.7, tsx
+> **Status:** Backend ✅ COMPLETE. Frontend (PWA) ✅ COMPLETE. APK build 🔄 IN PROGRESS — keystore generated, Gradle wired, `./gradlew assembleRelease` is the single remaining step.
+
+---
+
+## ⚡ SUBMISSION CHECKLIST (Do these in order)
+
+> This is the fastest path from current state → submitted APK + working demo.
+
+| # | Task | Status | Where |
+|---|---|---|---|
+| 1 | Confirm backend runs (`npm run dev` in worktree) | ⬜ | `d:\SAMSUNG_PRISM\p1\samsung_hack_01-apk-build-wip` |
+| 2 | Start tunnel & note the public HTTPS URL | ⬜ | `npm run tunnel` (ngrok) |
+| 3 | Update `twa-manifest.json` host + URLs to current tunnel URL | ⬜ | `android-build/aura-twa/twa-manifest.json` |
+| 4 | Update `public/.well-known/assetlinks.json` fingerprint to match keystore | ⬜ | `public/.well-known/assetlinks.json` |
+| 5 | Run `./gradlew assembleRelease` inside `android-build/aura-twa/` | ⬜ | Needs JDK 17+ in PATH |
+| 6 | APK output → `android-build/aura-twa/app/build/outputs/apk/release/app-release.apk` | ⬜ | Install on device |
+| 7 | Test: open APK on Android → AURA loads, backend responds | ⬜ | |
+| 8 | Seed demo data (`npm run reseed`) | ⬜ | |
+| 9 | Record demo video using `simple.html` PWA + auto-demo button | ⬜ | |
 
 ---
 
 ## 0. Quick Start
 
 ```bash
-cd d:\SAMSUNG_PRISM\p1\samsung_hack_01
-npm install
+# From worktree root:
+cd d:\SAMSUNG_PRISM\p1\samsung_hack_01-apk-build-wip
+npm install          # already done, but safe to re-run
 npm run dev          # starts daemon on http://localhost:3000
+npm run tunnel       # starts ngrok HTTP tunnel → copy the HTTPS URL
+npm run reseed       # seeds 14 days of demo data into SQLite
 ```
 
-Environment variables (optional — all have safe defaults):
+Open `http://localhost:3000/simple` in Chrome → the purple-orb PWA is the frontend.
+
+### Environment Variables (`.env`)
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -24,10 +47,11 @@ Environment variables (optional — all have safe defaults):
 | `TICK_INTERVAL_SEC` | `30` | Scheduler loop interval |
 | `TELEGRAM_BOT_TOKEN` | *(empty)* | Telegram delivery (falls back to console) |
 | `TELEGRAM_CHAT_ID` | *(empty)* | Telegram chat target |
-| `OLLAMA_URL` | *(empty)* | Ollama LLM endpoint (falls back to templates) |
+| `OLLAMA_URL` | *(empty)* | Ollama LLM (falls back to templates — **system works without Ollama**) |
 | `OLLAMA_MODEL` | `llama3.2` | Model name for narration |
 | `AUDIT_HMAC_SECRET` | `dev-secret-change-me` | HMAC key for audit chain |
 | `VOICE_ENABLED` | `1` | `0` to disable TTS |
+| `AURA_API_KEY` | *(empty)* | API key auth — only enforced in `NODE_ENV=production` |
 
 ---
 
@@ -62,101 +86,86 @@ Sensor Data → Fusion (p_need) → Gate (p_need × p_accept > τ) → Adversary
 
 > **Code thinks. LLM speaks.**
 
-The LLM (Ollama) is *only* used for narration — it translates structured data into natural language. It never learns, writes state, or triggers decisions. If Ollama is offline, high-quality fallback templates are used. The system is fully functional without any LLM.
+The LLM (Ollama) is *only* used for narration. It never triggers decisions. If Ollama is offline, high-quality fallback templates are used. The system is **fully functional without any LLM**.
 
 ---
 
 ## 2. File Map
 
 ```
-samsung_hack_01/
-├── SOUL.md                        # Personality + cost weights
-├── HEARTBEAT.yaml                 # Scheduler tick definitions
-├── TWIN.md                        # Persisted learned patterns
-├── IMPLEMENTATION_PLAN.md         # ← This file
-├── README.md                      # Project overview
-├── DECK.md                        # Pitch deck content
-├── package.json                   # Dependencies
-├── tsconfig.json                  # TypeScript config (strict)
-├── data/
-│   └── aura.db                    # SQLite WAL-mode database (auto-created)
-├── eval/
-│   ├── harness.ts                 # Evaluation harness (60-day synthetic traces)
-│   └── results.json               # Eval metrics (F1, false alarm rates)
-├── public/                        # Static HTML pages (landing, dev, simple)
-├── scripts/
-│   └── inspect-audit.mjs          # Audit log inspector
+samsung_hack_01-apk-build-wip/
+├── SOUL.md
+├── HEARTBEAT.yaml
+├── TWIN.md
+├── IMPLEMENTATION_PLAN.md         ← This file
+├── README.md
+├── DECK.md
+├── ngrok.yml                      ← Ngrok config (authtoken already set)
+├── cloudflared.exe                ← Cloudflare tunnel binary (alternative to ngrok)
+├── package.json
+├── tsconfig.json
+├── public/
+│   ├── simple.html                # ← MAIN PWA FRONTEND (purple orb, voice, chat)
+│   ├── landing.html               # Landing page (/)
+│   ├── dev.html                   # Dev dashboard
+│   ├── activity.html              # Activity log
+│   ├── app.js                     # Shared JS
+│   ├── style.css
+│   ├── manifest.webmanifest       # PWA manifest
+│   ├── sw.js                      # Service worker
+│   ├── icon-192.png / icon-512.png / icon.svg
+│   └── .well-known/
+│       └── assetlinks.json        # ← Digital Asset Links (SHA256 fingerprint)
+├── android-build/
+│   └── aura-twa/                  # Bubblewrap-generated TWA Android project
+│       ├── twa-manifest.json      # ← TWA config (host, startUrl, signing key)
+│       ├── android.keystore       # ← Keystore already generated (✅)
+│       ├── build.gradle           # Android Gradle 8.9.1
+│       ├── gradle.properties
+│       ├── gradlew / gradlew.bat  # Gradle wrapper
+│       ├── settings.gradle
+│       └── app/                   # Android app module
 └── src/
     ├── index.ts                   # Entry point — boots daemon
-    ├── config.ts                  # Env vars + paths
-    ├── db.ts                      # SQLite schema, settings, pruning
-    ├── scheduler.ts               # Tick loop + prewarm logic
-    ├── server.ts                  # Express HTTP server (all API routes)
-    ├── soul.ts                    # SOUL.md parser
-    ├── twin.ts                    # TWIN.md parser + pattern reader
-    ├── i18n.ts                    # Multi-language support (en/hi/kn)
-    ├── server/
-    │   └── simulate.ts            # Simulation API router
-    ├── pi-engine/
-    │   ├── fusion.ts              # Cross-modal sensor fusion
-    │   ├── gate.ts                # Bayesian decision gate
-    │   ├── calibration.ts         # Edge-PRISM cost calibration
-    │   ├── adversary.ts           # Deterministic veto critic
-    │   ├── shadow.ts              # LLM slow-mode reviewer
-    │   └── intent.ts              # Chat intent router (POST /api/say)
-    ├── gateway/
-    │   ├── ollama.ts              # LLM narration + health check
-    │   ├── telegram.ts            # Message delivery (Telegram or console)
-    │   ├── voice.ts               # TTS (macOS say / Windows PowerShell)
-    │   ├── weather.ts             # Open-Meteo weather API
-    │   ├── actions.ts             # Timer/note/quiet-block actions
-    │   ├── lookup.ts              # Web search stub
-    │   └── system.ts              # System info queries
-    ├── skills/
-    │   ├── _lib.ts                # Shared skill runner (gate + delivery)
-    │   ├── morning_brief/         # Daily morning briefing
-    │   ├── commute_guardian/       # Commute departure alerts
-    │   ├── meeting_reminder/      # Pre-meeting nudges
-    │   ├── hydration_reminder/    # Context-aware water reminders
-    │   ├── standup_break/         # Sedentary break alerts
-    │   ├── eod_wrap/              # End-of-day summary
-    │   └── wind_down/             # Bedtime wind-down coach
-    ├── score/
-    │   └── compute.ts             # Day-Readiness Score (CRS) calculator
-    ├── twin/
-    │   └── learn.ts               # Behavioral pattern learner
-    ├── audit/
-    │   └── log.ts                 # HMAC-chained audit log
-    ├── data/
-    │   └── seed.ts                # Demo data seeder
-    ├── demo/
-    │   └── runner.ts              # Auto-demo orchestrator
-    ├── eval/
-    │   └── harness.ts             # Evaluation framework
-    └── cli/
-        └── tick.ts                # Manual tick CLI command
+    ├── config.ts
+    ├── db.ts                      # SQLite schema (13 tables, WAL mode)
+    ├── scheduler.ts               # Tick loop
+    ├── server.ts                  # Express HTTP server (30+ REST endpoints)
+    ├── soul.ts / twin.ts / i18n.ts
+    ├── server/simulate.ts         # Simulation API router
+    ├── pi-engine/                 # PRISM decision engine
+    ├── gateway/                   # Ollama, Telegram, Voice, Weather
+    ├── skills/                    # 7 active skills
+    ├── score/compute.ts           # Day-Readiness Score
+    ├── twin/learn.ts
+    ├── audit/log.ts               # HMAC-chained audit log
+    ├── data/seed.ts               # Demo seeder
+    ├── demo/runner.ts             # Auto-demo orchestrator
+    └── cli/tick.ts
 ```
 
 ---
 
 ## 3. Complete API Reference
 
-Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
+Base URL: `http://localhost:3000` (tunneled via ngrok for Android TWA)
 
 ### 3.1 Dashboard APIs
 
-| Method | Endpoint | Purpose | Response shape |
-|---|---|---|---|
-| `GET` | `/api/status` | **Master dashboard endpoint** — all data in one call | `{ score, next_event, last_message, hrv, voice_enabled, ollama, ts }` |
-| `GET` | `/api/score` | Raw readiness score | `{ total, components: { sleep, activity, calendar_load, stress_balance } }` |
-| `GET` | `/api/last` | Last sent message + next event | `{ last_message, next_event, voice_enabled }` |
-| `GET` | `/health` | System health | `{ ollama: { online, model, checked_at } }` |
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/status` | All dashboard data in one call: score, next event, last message, HRV, voice, ollama |
+| `GET` | `/api/score` | Raw Day-Readiness Score |
+| `GET` | `/api/last` | Last sent message + next calendar event + voice status |
+| `GET` | `/health` | Ollama health check |
+| `GET` | `/metrics` | Prometheus-format metrics (text/plain) |
+| `GET` | `/api/metrics` | JSON metrics: uptime, request counts, DB stats, memory |
 
 ### 3.2 Chat
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/say` | `{ transcript: string, lang?: "en"|"hi"|"kn" }` | `{ reply: string, intent: string, ... }` |
+| `POST` | `/api/say` | `{ transcript: string, lang?: "en"|"hi"|"kn" }` | `{ reply, intent, ... }` |
 
 ### 3.3 Skills & Feedback
 
@@ -164,7 +173,7 @@ Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
 |---|---|---|
 | `GET` | `/api/skill_runs` | Last 30 skill executions |
 | `POST` | `/api/skill_runs/:id/feedback` | `{ action: "accept"|"dismiss" }` — teaches the gate |
-| `GET` | `/api/activity?days=7` | Aggregated stats: per-skill + per-day + acceptance rate |
+| `GET` | `/api/activity?days=7` | Per-skill + per-day stats + acceptance rate |
 | `POST` | `/api/run/morning_brief` | Manually trigger morning brief |
 | `POST` | `/api/run/commute_guardian` | Manually trigger commute guardian |
 | `POST` | `/api/tick` | Force one scheduler tick |
@@ -179,12 +188,12 @@ Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
 | `POST` | `/api/calendar` | `{ start_ts, end_ts, title, location? }` |
 | `DELETE` | `/api/calendar/:id` | Remove event |
 
-### 3.5 Sensors
+### 3.5 Sensors (HRV / Galaxy Watch)
 
 | Method | Endpoint | Body | Purpose |
 |---|---|---|---|
-| `POST` | `/api/hrv` | `{ rmssd: number }` (20-300) | Galaxy Watch HRV ingestion |
-| `GET` | `/api/hrv` | — | Current stress level |
+| `POST` | `/api/hrv` | `{ rmssd: number }` (0–300) | Galaxy Watch HRV ingestion |
+| `GET` | `/api/hrv` | — | Current normalised stress + raw RMSSD |
 
 ### 3.6 Settings & Voice
 
@@ -201,7 +210,7 @@ Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/api/audit` | Audit chain verification + last 50 entries |
-| `POST` | `/api/gate/test` | `{ skill?, text?, importance? }` — test gate decision without side effects |
+| `POST` | `/api/gate/test` | `{ skill?, text?, importance? }` — test gate without side effects |
 | `GET` | `/api/quiet` | Current quiet-block status |
 | `GET` | `/api/twin` | Raw TWIN data |
 | `GET` | `/api/soul` | Raw SOUL data |
@@ -210,20 +219,20 @@ Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
 
 | Method | Endpoint | Body | Purpose |
 |---|---|---|---|
-| `POST` | `/api/simulate/reset` | — | Clear all telemetry (fresh demo) |
+| `POST` | `/api/simulate/reset` | — | Clear all telemetry |
 | `POST` | `/api/simulate/scenario/busy` | — | Inject 6 meetings + high stress + low steps |
 | `POST` | `/api/simulate/scenario/relaxed` | — | Clear calendar + high steps + low stress |
 | `POST` | `/api/simulate/steps` | `{ count?, hour?, date? }` | Inject step data |
-| `POST` | `/api/simulate/hrv` | `{ stress: 0.0-1.0 }` | Inject HRV stress |
+| `POST` | `/api/simulate/hrv` | `{ stress: 0.0–1.0 }` | Inject HRV stress |
 
 ### 3.9 Demo Orchestration
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `POST` | `/api/demo/start` | Start auto-demo sequence |
+| `POST` | `/api/demo/start` | Start auto-demo sequence (client polls `/api/demo/state`) |
 | `POST` | `/api/demo/stop` | Stop demo |
 | `GET` | `/api/demo/state` | Demo progress |
-| `POST` | `/api/narrate` | `{ text }` — push text into AURA's voice |
+| `POST` | `/api/narrate` | `{ text }` — push text into AURA's voice + skill_runs log |
 
 ---
 
@@ -231,21 +240,21 @@ Base URL: `http://localhost:3000` (tunneled via ngrok/localtunnel for Lovable)
 
 File: `data/aura.db` (auto-created on first boot)
 
-| Table | Purpose | Key columns |
-|---|---|---|
-| `events` | Raw telemetry log | `ts, kind, payload` |
-| `calendar` | User's calendar events | `start_ts, end_ts, title, location` |
-| `sleep` | Sleep records | `date, duration_min, quality` |
-| `steps` | Hourly step counts | `date, hour, count` (unique on date+hour) |
-| `notifications` | App notification log | `ts, source, cleared` |
-| `skill_runs` | Every skill execution + feedback | `ts, skill, accepted, dismissed, payload` |
-| `audit_log` | HMAC-chained decision log | `ts, kind, payload, prev_hash, hash` |
-| `scheduler_state` | Per-tick last-run timestamps | `tick_id, last_run` |
-| `prewarm_cache` | Shadow AURA pre-computed verdicts | `skill, ts, verdict` |
-| `quiet_blocks` | User-initiated DND periods | `start_ts, end_ts, reason` |
-| `notes` | User notes | `ts, body` |
-| `timers` | User timers | `label, end_ts, fired` |
-| `settings` | Key-value config store | `key, value, updated_at` |
+| Table | Purpose |
+|---|---|
+| `events` | Raw telemetry log |
+| `calendar` | User's calendar events |
+| `sleep` | Sleep records |
+| `steps` | Hourly step counts |
+| `notifications` | App notification log |
+| `skill_runs` | Every skill execution + user feedback |
+| `audit_log` | HMAC-chained decision log |
+| `scheduler_state` | Per-tick last-run timestamps |
+| `prewarm_cache` | Shadow AURA pre-computed verdicts |
+| `quiet_blocks` | User-initiated DND periods |
+| `notes` | User notes |
+| `timers` | User timers |
+| `settings` | Key-value config store |
 
 ---
 
@@ -279,15 +288,20 @@ File: `data/aura.db` (auto-created on first boot)
 - [x] Ollama LLM narration (with template fallback)
 - [x] Voice TTS: macOS (`say`) + Windows (PowerShell SpeechSynthesizer)
 - [x] Weather: Open-Meteo API
-- [x] Chat: Full intent router (POST /api/say) with timer/note/quiet/settings actions
+- [x] Chat: Full intent router (`POST /api/say`) with timer/note/quiet/settings actions
 
 ### 5.5 Server & API
-- [x] Express server with 25+ REST endpoints
+- [x] Express server with 30+ REST endpoints
 - [x] CORS: wildcard origin (safe for single-user daemon)
-- [x] Localtunnel/ngrok bypass headers
-- [x] Global error handler (async-safe)
-- [x] Request body size cap (256kb)
+- [x] Localtunnel/ngrok bypass headers on every response
+- [x] Global error handler (async-safe via `wrap()`)
+- [x] Request body size cap (256 kb)
 - [x] Input validation on all POST endpoints
+- [x] Rate limiting: global 100 req/min, `/api/say` 30/min, `/api/hrv` 60/min
+- [x] Optional API key auth (`AURA_API_KEY` env var)
+- [x] Prometheus-style `/metrics` endpoint
+- [x] JSON `/api/metrics` with uptime, request counts, DB stats, memory
+- [x] Graceful shutdown: SIGTERM flushes WAL and closes DB
 
 ### 5.6 Data Management
 - [x] Automated pruning: prewarm (2h), events (30d), audit (90d), notifications (30d)
@@ -295,39 +309,108 @@ File: `data/aura.db` (auto-created on first boot)
 - [x] HMAC-chained audit log with verification endpoint
 
 ### 5.7 Developer Tooling
-- [x] Simulation API (/api/simulate/*) for frontend testing
-- [x] Gate test endpoint (/api/gate/test)
-- [x] Auto-demo orchestrator (/api/demo/start)
+- [x] Simulation API (`/api/simulate/*`) for demo scenarios
+- [x] Gate test endpoint (`/api/gate/test`)
+- [x] Auto-demo orchestrator (`/api/demo/start`)
 - [x] Eval harness with 60-day synthetic traces
 - [x] `tsc --strict --noEmit` passes with 0 errors
 
-### 5.8 Frontend (Lovable — External)
-- [x] Dashboard UI built in Lovable (React + Tailwind + shadcn)
-- [x] Connected to backend via ngrok/localtunnel tunnel
-- [x] Pages: Dashboard, Skills Log, Calendar, Simulate, Audit Log
+### 5.8 Frontend (PWA — `public/simple.html`)
+- [x] Purple ambient orb with floating animation + speaking/listening states
+- [x] Language switcher: EN / हिं / ಕ (sends `lang` param to backend)
+- [x] Push-to-talk mic button (Web Speech Recognition API)
+- [x] Wake-word continuous listening: "Hey AURA" / "OK AURA"
+- [x] Voice output via Web Speech Synthesis (premium voice selection)
+- [x] Onboarding modal (name, language, quiet hours)
+- [x] Settings drawer (name, language, quiet hours, city)
+- [x] Offline-resilient: caches last good API responses in localStorage
+- [x] Demo banner with progress bar (auto-demo mode)
+- [x] Brief me button → triggers `morning_brief`
+- [x] Mute/unmute voice toggle
+- [x] Service worker registered (`sw.js`) → installable PWA
+- [x] PWA manifest (`manifest.webmanifest`) with icons
+
+### 5.9 Android APK (TWA — Trusted Web Activity)
+- [x] Bubblewrap TWA project generated in `android-build/aura-twa/`
+- [x] `android.keystore` generated (alias: `android`, path hard-coded in `twa-manifest.json`)
+- [x] `assetlinks.json` created with correct SHA256 fingerprint from keystore
+- [x] `twa-manifest.json` wired to Cloudflare tunnel URL (`las-dsc-snapshot-grace.trycloudflare.com`)
+- [x] Gradle 8.9.1 + Android Gradle Plugin in `build.gradle`
+- [x] `gradlew.bat` present — can run `./gradlew assembleRelease` on Windows
 
 ---
 
 ## 6. What Is IN PROGRESS 🔄
 
-### 6.1 Frontend-Backend Connectivity
-- [ ] **Tunnel stability**: localtunnel gives 503 errors; switch to ngrok with free static domain (helper: `npm run tunnel`)
-- [x] **Lovable bypass header**: static UI now sets `"bypass-tunnel-reminder": "true"` on all fetch calls
-- [x] **Offline graceful degradation**: static UI caches last good responses and shows them when the tunnel drops
+### 6.1 APK Build — Final Step
 
-Recommended ngrok setup (free tier):
+**Situation:** Everything is wired. The keystore exists (`android.keystore`), `assetlinks.json` has the SHA256 fingerprint, and `twa-manifest.json` references the Cloudflare tunnel domain. The only remaining step is to run Gradle.
+
+**Blocker:** The Cloudflare tunnel URL in `twa-manifest.json` (`las-dsc-snapshot-grace.trycloudflare.com`) is **ephemeral** — it changes every time `cloudflared` is restarted. The `assetlinks.json` fingerprint does NOT change (it's tied to the keystore, not the URL), but the **host URL** in `twa-manifest.json` must match the live tunnel URL for the TWA to load.
+
+**Steps to complete the APK:**
 
 ```bash
-ngrok http 3000
+# 1. Start the backend dev server
+cd d:\SAMSUNG_PRISM\p1\samsung_hack_01-apk-build-wip
+npm run dev
+
+# 2. Start a tunnel — use EITHER ngrok OR cloudflared:
+npm run tunnel           # ngrok (recommended — more stable)
+# OR: .\cloudflared.exe tunnel --url http://localhost:3000
+
+# 3. Note the public HTTPS URL from the tunnel output, e.g.:
+#    https://abc123.ngrok-free.app
+
+# 4. Update twa-manifest.json (3 fields):
+#    "host": "abc123.ngrok-free.app"
+#    "iconUrl": "https://abc123.ngrok-free.app/icon-512.png"
+#    "maskableIconUrl": "https://abc123.ngrok-free.app/icon-512.png"
+#    "webManifestUrl": "https://abc123.ngrok-free.app/manifest.webmanifest"
+#    "fullScopeUrl": "https://abc123.ngrok-free.app/"
+#    "packageId": "com.ngrok.abc123.twa"   (or keep existing)
+
+# 5. Verify assetlinks.json fingerprint matches the keystore:
+#    The file already has: 93:27:22:29:B4:EB:... — do NOT change unless you regenerate the keystore.
+
+# 6. Build the APK (from the android-build/aura-twa directory):
+cd android-build\aura-twa
+.\gradlew.bat assembleRelease
+
+# 7. APK output:
+#    app\build\outputs\apk\release\app-release.apk
+
+# 8. Install on Android device:
+adb install app\build\outputs\apk\release\app-release.apk
+# OR: transfer the APK file manually and side-load it
 ```
 
-Use the generated HTTPS URL as the Lovable backend base URL.
+**Requirement:** JDK 17+ must be installed and `JAVA_HOME` set. Android SDK is handled by Gradle (downloads automatically first time).
+
+### 6.2 Tunnel Stability
+
+- **ngrok** is preferred. The `ngrok.yml` authtoken is already configured.
+- **Cloudflare** (`cloudflared.exe`) is an alternative — already present in worktree root.
+- The ngrok free tier gives a different URL each session → update `twa-manifest.json` each time before building.
+- For a **permanent** URL: upgrade ngrok to paid, or deploy the Node.js backend to a free host (Render, Railway) with a stable domain.
 
 ---
 
 ## 7. What Is LEFT TO DO ⬜
 
-### 7.1 Phase 3: Samsung Hardware Bridge (Post-Hackathon)
+### 7.1 APK Completion (MUST DO)
+- [ ] Choose and start a tunnel (ngrok recommended)
+- [ ] Update `twa-manifest.json` with current tunnel URL
+- [ ] Ensure JDK 17+ is in PATH (`java -version` to check)
+- [ ] Run `.\gradlew.bat assembleRelease` in `android-build/aura-twa/`
+- [ ] Install and test APK on Android device
+
+### 7.2 Demo Polish (SHOULD DO)
+- [ ] Run `npm run reseed` to load fresh 14-day demo data
+- [ ] Record demo video: open `/simple`, tap "🎭 AURA demos herself", capture screen
+- [ ] Test "Hey AURA" wake word on mobile Chrome
+
+### 7.3 Phase 3: Samsung Hardware Bridge (Post-Hackathon)
 - [ ] **Samsung Health Data SDK**: Replace `/api/hrv` stub with real Galaxy Watch HRV stream
 - [ ] **Samsung Health Steps**: Replace `/api/simulate/steps` with real pedometer data
 - [ ] **Samsung Neural SDK / Gauss-on-NPU**: Port Ollama inference to on-device NPU
@@ -335,59 +418,96 @@ Use the generated HTTPS URL as the Lovable backend base URL.
 - [ ] **Foreground Android Service**: Convert Node.js daemon to Android service
 - [ ] **Galaxy AI Integration**: Surface TWIN/SOUL into Samsung OS settings
 
-### 7.2 Production Hardening (For 1M+ Users)
-- [ ] **Rate limiting**: Add `express-rate-limit` to prevent API abuse
-- [x] **Rate limiting**: Global + endpoint-specific throttles
-- [x] **Authentication**: API key enforced in production (`AURA_API_KEY`)
-- [x] **Database migration system**: Schema versioning + migration hooks (baseline v1)
-- [x] **Health monitoring**: JSON metrics + Prometheus-style `/metrics`
-- [x] **Graceful shutdown**: SIGTERM handler to flush WAL and close DB
+### 7.4 Production Hardening (Post-Hackathon)
 - [ ] **Horizontal scaling**: Replace in-process SQLite with PostgreSQL for multi-instance
-
-### 7.3 Demo Polish
-- [ ] **Demo Video Script**: Record a narrated walkthrough showing AURA's proactive behavior
-- [ ] **Presentation Deck**: Update DECK.md with live screenshots from Lovable UI
-- [x] **Demo Video Script**: Drafted script in `demo/VIDEO_SCRIPT.md`
-- [ ] **Presentation Deck**: Update DECK.md with live screenshots from Lovable UI
-- [x] **Edge case testing**: Added `npm run edge:cases` to validate empty/no-HRV/dismissed flows
+- [ ] **JWT auth**: Add proper per-user authentication for multi-user support
 
 ---
 
-## 8. Known Limitations
+## 8. Known Issues & Mitigations
 
-| Limitation | Impact | Mitigation |
+| Issue | Impact | Fix |
 |---|---|---|
-| SQLite is single-writer | Fine for single-user; blocks at scale | Phase 3: PostgreSQL migration |
-| Node.js SQLite is "experimental" | Console warning on every boot | Harmless; stable in practice |
-| Ollama must be running for LLM narration | Fallback templates are used | Templates are high quality |
-| Localtunnel is unreliable (503s) | Frontend shows "AURA offline" | Switch to ngrok free tier |
-| No auth/multi-user | Anyone with the URL can access API | Single-user design; add JWT for prod |
+| Tunnel URL changes each session | TWA fails to load if `twa-manifest.json` not updated | Update host URL before each build |
+| JDK missing from PATH | `./gradlew` fails | Install JDK 17+, set `JAVA_HOME` |
+| SQLite is single-writer | Fine for demo; blocks at scale | Phase 3: PostgreSQL |
+| Node.js SQLite is "experimental" | Console warning on boot | Harmless; stable in practice |
+| Ollama must be running for LLM narration | Fallback templates used instead | Templates are high quality |
 | `meeting_reminder` fires every minute | Verbose scheduler logs | By design — needs minute-level precision |
+| ngrok free tier URL changes per session | Must rebuild APK with new URL | Use paid ngrok for stable domain |
 
 ---
 
 ## 9. Commands Reference
 
 ```bash
-npm run dev          # Start daemon with hot-reload (tsx watch)
-npm run start        # Start daemon without hot-reload
-npm run seed         # Seed demo data into existing DB
-npm run reseed       # Delete DB + reseed from scratch
-npm run tick         # Run one scheduler tick manually
-npm run learn        # Run TWIN learner manually
-npm run eval         # Run evaluation harness
+# Backend
+npm run dev            # Start daemon with hot-reload (tsx watch) on :3000
+npm run start          # Start daemon without hot-reload
+npm run seed           # Seed demo data
+npm run reseed         # Delete DB + reseed from scratch
+npm run tick           # Run one scheduler tick manually
+npm run learn          # Run TWIN learner manually
+npm run eval           # Run evaluation harness
 npm run inspect:audit  # Inspect the audit log
+npm run tunnel         # Start ngrok tunnel (uses ngrok.yml authtoken)
+
+# Android build (from android-build/aura-twa/)
+.\gradlew.bat assembleDebug     # Debug APK (no signing required)
+.\gradlew.bat assembleRelease   # Signed release APK (uses android.keystore)
+.\gradlew.bat clean             # Clean build artifacts
+
+# Keystore inspection (to verify fingerprint matches assetlinks.json)
+keytool -list -v -keystore android-build\aura-twa\android.keystore -alias android
 ```
 
 ---
 
-## 10. For Any AI Model Continuing This Work
+## 10. TWA / APK Deep Dive
 
-1. **Read SOUL.md** first — it defines AURA's personality and constraints.
-2. **Read HEARTBEAT.yaml** — it defines when each skill is eligible to fire.
+### How the TWA Works
+1. Android opens the APK — it's essentially a native Chrome wrapper.
+2. Chrome loads `https://<tunnel-host>/simple` (the purple-orb PWA).
+3. The TWA trusts the domain if and only if `/.well-known/assetlinks.json` on that domain contains the SHA256 fingerprint of the signing certificate. This is already set up.
+4. Without a matching `assetlinks.json`, Android falls back to a regular Chrome tab (still works for demo, just loses the full-screen TWA experience).
+
+### Key Files & Their Relationship
+
+```
+twa-manifest.json
+  └── "host": "abc.ngrok.app"           ← must match live tunnel
+  └── "signingKey.path": ".../android.keystore"
+
+android.keystore
+  └── SHA256 fingerprint → 93:27:22:29:...
+
+public/.well-known/assetlinks.json
+  └── "sha256_cert_fingerprints": ["93:27:22:29:..."]
+       ← must match keystore fingerprint
+       ← served at https://<tunnel-host>/.well-known/assetlinks.json
+```
+
+### Package ID Note
+Current `packageId` in `twa-manifest.json`: `com.trycloudflare.abraham_wage_grace_harold.twa`
+When switching to ngrok, you can keep this or change it. Changing it means a different app on the device.
+
+---
+
+## 11. For Any AI Model Continuing This Work
+
+1. **Read `SOUL.md`** first — personality + constraints.
+2. **Read `HEARTBEAT.yaml`** — when each skill fires.
 3. **The decision pipeline** is in `src/pi-engine/` — fusion → gate → adversary → shadow.
-4. **To add a new skill**: create `src/skills/your_skill/index.ts`, export a `run()` function matching the `SkillRunner` type, register it in `src/scheduler.ts` SKILLS map, add a tick entry in `HEARTBEAT.yaml`.
+4. **The main frontend** is `public/simple.html` — a single self-contained HTML file with inline CSS and JS. No build step needed.
 5. **All API routes** are in `src/server.ts` (main) and `src/server/simulate.ts` (simulation).
-6. **TypeScript strict mode** is enforced — run `tsc --noEmit --strict` before committing.
-7. **The DB uses Node's built-in `DatabaseSync`** (not better-sqlite3). There is no `.transaction()` method — use `db.exec("BEGIN")` / `db.exec("COMMIT")` for atomicity.
-8. **Frontend** is built in Lovable (external SaaS). The backend exposes everything the frontend needs via `/api/status` (single-call dashboard data).
+6. **TypeScript strict mode** — run `tsc --noEmit --strict` before committing.
+7. **The DB uses Node's built-in `DatabaseSync`** (not better-sqlite3). No `.transaction()` — use `db.exec("BEGIN")` / `db.exec("COMMIT")`.
+8. **TWA = Trusted Web Activity** — it is a Chrome wrapper around the PWA. The APK itself has no Android Java/Kotlin code beyond the Bubblewrap scaffold.
+9. **The `assetlinks.json` fingerprint is already correct** (matches `android.keystore`). Don't regenerate the keystore unless you also update `assetlinks.json`.
+10. **Ngrok authtoken** is set in `ngrok.yml` — just run `npm run tunnel`.
+
+## ? Final Build Complete (2026-05-08)
+
+- **Signed APK**: [app-release.apk](file:///d:/SAMSUNG_PRISM/p1/samsung_hack_01-apk-build-wip/android-build/aura-twa/app/build/outputs/apk/release/app-release.apk)
+- **Tunnel**: https://false-busload-squabble.ngrok-free.dev
+- **Status**: Backend running, APK signed, resources fixed. Ready for submission.

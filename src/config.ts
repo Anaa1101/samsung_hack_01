@@ -18,6 +18,10 @@ export const config = {
     url: process.env.OLLAMA_URL ?? "",
     model: process.env.OLLAMA_MODEL ?? "llama3.2",
   },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY ?? "",
+    model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+  },
   audit: {
     secret: process.env.AUDIT_HMAC_SECRET ?? "dev-secret-change-me",
   },

@@ -100,6 +100,14 @@ db.exec(`
     body TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS chat_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    role TEXT NOT NULL,
+    text TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS chat_history_ts_idx ON chat_history(ts);
+
   CREATE TABLE IF NOT EXISTS timers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     label TEXT NOT NULL,

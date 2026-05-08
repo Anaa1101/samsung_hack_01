@@ -86,8 +86,13 @@ async function jpost(url, body = {}) {
       headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
       body: JSON.stringify(body),
     });
-    return r.json();
-  } catch {
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: "server_error" }));
+      return { error: err.error || "http_error", status: r.status };
+    }
+    return await r.json();
+  } catch (e) {
+    console.warn("[jpost] failed:", e);
     return { error: "offline" };
   }
 }

@@ -11,17 +11,11 @@
     <link rel="icon" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <title>AURA</title>
+    <link rel="stylesheet" href="/style.css" />
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-      html, body {
-        height: 100%;
-        background: #050008;
-        color: #f0e6ff;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-        overflow: hidden;
-        overscroll-behavior: none;
-      }
-      body {
+      /* Page-specific overrides */
+      body { height: 100vh; overflow: hidden; padding: 0; }
+      .phone { border: none; max-width: 100%; border-radius: 0; }
         background:
           radial-gradient(ellipse at 50% 0%, #2d0a4e 0%, transparent 60%),
           radial-gradient(ellipse at 30% 100%, #4a1a7a 0%, transparent 50%),
@@ -408,29 +402,59 @@
       </div>
     </div>
 
-    <main>
-      <div class="orb-wrap"><div class="orb" id="orb"></div></div>
-      <div class="last-message empty" id="msg">Tap the mic and ask anything. Or wait — I'll speak first when it matters.</div>
-      <div class="transcript" id="transcript"></div>
-      <div class="meta-row">
-        <div>NEXT<strong id="next">—</strong></div>
-        <div>LAST SPOKE<strong id="ago">—</strong></div>
+    <svg style="position: absolute; width: 0; height: 0;">
+      <filter id="plasma-filter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="3" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" />
+      </filter>
+    </svg>
+
+    <div class="phone">
+      <div class="status-bar">
+        <div class="brand">AURA</div>
+        <div id="connection-status" class="tag good">LINKED</div>
       </div>
-      <div class="quiet-banner" id="quiet"></div>
-    </main>
 
-    <div id="demo-banner" class="demo-banner"></div>
-    <div id="status"></div>
-    <footer>
-      <button id="demo-btn" class="primary" style="background:linear-gradient(135deg,#f59e0b,#ec4899);">🎭 AURA demos herself</button>
-      <button id="speak-btn">Brief me</button>
-      <button class="mic" id="mic-btn" title="Tap to talk">🎤</button>
-      <button id="wake-btn">👂 Hey AURA: off</button>
-      <button id="test-btn">🔈 test</button>
-      <button id="mute-btn">🔊 voice on</button>
-    </footer>
+      <main>
+        <div class="orb-container">
+          <div class="orb-portal">
+            <div class="orb-ring"></div>
+            <div id="orb" class="orb"></div>
+          </div>
+          <div class="visualizer" id="viz">
+            <div class="v-bar"></div>
+            <div class="v-bar" style="animation-delay: 0.1s"></div>
+            <div class="v-bar" style="animation-delay: 0.2s"></div>
+            <div class="v-bar" style="animation-delay: 0.3s"></div>
+            <div class="v-bar" style="animation-delay: 0.4s"></div>
+          </div>
+        </div>
 
-    <a href="/" class="dev-link">dev view →</a>
+        <div class="message-box">
+          <div id="msg" class="message-text">AURA synchronization complete.</div>
+          <div id="transcript" class="meta-text">Standing by...</div>
+        </div>
+
+        <div class="glass-panel">
+          <div class="score-row">
+            <div class="meta-text">COGNITIVE INDEX</div>
+            <div class="score-num" id="score-val">84</div>
+          </div>
+          
+          <div class="button-grid">
+            <button id="ptt" class="mic primary">
+              <span>Push to Talk</span>
+            </button>
+            <button onclick="runBrief()">
+              <span>Briefing</span>
+            </button>
+            <button onclick="location.href='/'">
+              <span>Activity</span>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
 
     <script>
       const $ = (s) => document.querySelector(s);
@@ -478,8 +502,13 @@
             headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
             body: JSON.stringify(b ?? {}),
           });
-          return r.json();
-        } catch {
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({ error: "server_error" }));
+            return { error: err.error || "http_error", status: r.status };
+          }
+          return await r.json();
+        } catch (e) {
+          console.warn("[jp] failed:", e);
           return { error: "offline" };
         }
       };
@@ -556,38 +585,22 @@
         const [d, q] = await Promise.all([j("/api/last"), j("/api/quiet")]);
         if (!d) return;
         if (d.last_message) {
-          $("#msg").classList.remove("empty");
-          $("#msg").textContent = "“" + d.last_message.text + "”";
-          $("#ago").textContent = ago(d.last_message.ts);
+          $("#msg").textContent = d.last_message.text;
         }
-        $("#next").textContent = d.next_event
-          ? fmtNext(d.next_event.min_until, d.next_event.title)
-          : "nothing soon";
+        $("#next-event").textContent = d.next_event
+          ? "Next: " + fmtNext(d.next_event.min_until, d.next_event.title)
+          : "Next: No events soon";
         if (d.voice_enabled === false) voiceMuted = true;
-        const muteBtn = $("#mute-btn");
-        if (!voiceMuted) { muteBtn.textContent = "🔊 voice on"; muteBtn.classList.remove("muted"); }
-        else { muteBtn.textContent = "🔇 muted"; muteBtn.classList.add("muted"); }
-        if (q.active) {
-          const until = new Date(q.until);
-          const left = Math.max(0, Math.round((until - new Date()) / 60000));
-          $("#quiet").textContent = `🔕 quiet for ${left} more min — only critical alerts`;
-          $("#quiet").classList.add("show");
-        } else {
-          $("#quiet").classList.remove("show");
-        }
       }
 
-      // ---------- Brief button ----------
-      $("#speak-btn").onclick = async () => {
-        speakLocal({ en: "Let me check.", hi: "ज़रा देखती हूँ।", kn: "ನೋಡುತ್ತೇನೆ." }[lang] ?? "Let me check.");
+      async function runBrief() {
+        speakLocal({ en: "Synchronizing.", hi: "सिंक्रोनाइज़ कर रही हूँ।", kn: "ಸಿಂಕ್ರೊನೈಸ್ ಮಾಡಲಾಗುತ್ತಿದೆ." }[lang] ?? "Synchronizing.");
         const r = await jp("/api/run/morning_brief", { dry_run: false, lang });
-        if (!r || r.error) { setStatus("offline — try again"); return; }
-        const text = r.message?.text ?? { en: "Nothing pressing right now.", hi: "अभी कुछ ज़रूरी नहीं।", kn: "ಈಗ ಏನೂ ಪ್ರಮುಖವಲ್ಲ." }[lang];
-        $("#msg").classList.remove("empty");
-        $("#msg").textContent = "“" + text + "”";
-        $("#ago").textContent = "just now";
+        if (!r || r.error) { setStatus("Sync failed."); return; }
+        const text = r.message?.text ?? "All systems operational.";
+        $("#msg").textContent = text;
         speakLocal(text);
-      };
+      }
 
       // ---------- Test sound ----------
       $("#test-btn").onclick = () => {
@@ -646,23 +659,31 @@
         const t = text.trim();
         if (!t) return;
         $("#transcript").textContent = t;
-        setStatus("thinking…");
+        setStatus("AURA is thinking…");
         try {
           const r = await jp("/api/say", { transcript: t, lang });
-          if (!r || r.error || !r.reply) { setStatus("offline — no response"); return; }
+          if (!r || r.error || !r.reply) { setStatus("I couldn't hear that clearly. Try again?"); return; }
           $("#msg").classList.remove("empty");
           $("#msg").textContent = "“" + r.reply + "”";
           $("#ago").textContent = "just now";
           speakLocal(r.reply);
+          setStatus("");
         } catch (e) {
-          setStatus("error: " + e.message);
+          setStatus("Connection lost. Retrying…");
         }
       }
 
       // ---- Push-to-talk via mic button ----
       function startPtt() {
-        if (!SR) { setStatus("this browser has no voice input — try Chrome or Safari"); return; }
+        if (location.protocol === "http:" && location.hostname !== "localhost") {
+          setStatus("Voice needs HTTPS.");
+          return;
+        }
+        if (!SR) { setStatus("Browser not supported."); return; }
         if (pttListening) return;
+        
+        if (navigator.vibrate) navigator.vibrate(40);
+        
         pttRecognition = makeRecognition(
           false,
           (e) => {
@@ -671,39 +692,38 @@
               const t = e.results[i][0].transcript;
               if (e.results[i].isFinal) final += t; else interim += t;
             }
-            $("#transcript").textContent = (final || interim).trim();
+            const current = (final || interim).trim();
+            if (current) $("#transcript").textContent = current;
           },
           async () => {
             pttListening = false;
-            $("#mic-btn").classList.remove("listening");
+            $("#ptt").classList.remove("listening");
             $("#orb").classList.remove("listening");
             const t = $("#transcript").textContent.trim();
-            if (!t) { setStatus("didn't catch anything"); return; }
+            if (!t) { setStatus("Standing by..."); return; }
             await handleCommand(t);
-            // After PTT, restart wake listener if it was on (PTT pauses it).
             if (wakeOn) startWake();
           },
           (e) => {
             pttListening = false;
-            $("#mic-btn").classList.remove("listening");
+            $("#ptt").classList.remove("listening");
             $("#orb").classList.remove("listening");
-            setStatus("mic error: " + e.error);
+            setStatus("Mic error: " + e.error);
           },
         );
         try {
-          // PTT and wake can't both run on the same mic — pause wake.
           stopWake(true);
           pttRecognition.start();
           pttListening = true;
-          $("#mic-btn").classList.add("listening");
+          $("#ptt").classList.add("listening");
           $("#orb").classList.add("listening");
-          setStatus("listening… (tap mic again to stop)");
+          setStatus("Listening...");
         } catch (e) {
-          setStatus("mic start failed: " + e.message);
+          setStatus("Mic failed.");
         }
       }
 
-      $("#mic-btn").onclick = () => {
+      $("#ptt").onclick = () => {
         if (pttListening) { pttRecognition.stop(); return; }
         $("#transcript").textContent = "";
         startPtt();
