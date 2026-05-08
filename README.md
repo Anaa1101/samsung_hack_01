@@ -52,6 +52,36 @@ Then open:
 
 ---
 
+## 📂 Project Resources & Structure
+
+For the convenience of mentors and judges, the key submission artifacts have been organized as follows:
+
+| Resource | Path | Description |
+|---|---|---|
+| **Android APK** | [`release/aura-v1.0-release.apk`](./release/aura-v1.0-release.apk) | Production-ready TWA build for testing on Galaxy devices. |
+| **Presentation** | [`docs/presentation/AURA_Hackathon_Presentation.pdf`](./docs/presentation/AURA_Hackathon_Presentation.pdf) | Final technical pitch deck. |
+| **Demo Video** | [`demo/aura_technical_demo.mp4`](./demo/aura_technical_demo.mp4) | 4-minute technical walkthrough with live voice interaction. |
+| **AI Disclosure** | [`docs/compliance/OpenClaw_AI_Disclosure.docx`](./docs/compliance/OpenClaw_AI_Disclosure.docx) | Mandatory AI usage disclosure for the Samsung PRISM hackathon. |
+| **Demo Script** | [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md) | Narrated guide highlighting the "Amaze Factors" (PRISM Gate, HMAC Audit, etc.) |
+
+### Core Codebase Structure
+```text
+.
+├── release/              # Final Android APK (AURA thin-client)
+├── docs/                 # PPT and Compliance documentation
+├── demo/                 # Technical demonstration video
+├── public/               # Frontend (Landing page, Simple App, Dev Dashboard)
+├── src/                  # Core PRISM logic & Agent engine
+│   ├── pi-engine/        # Proactive Intelligence (Gate, Critic, Audit)
+│   ├── skills/           # Modular proactive capabilities
+│   └── gateway/          # Communication layers (Voice, Telegram, WebSocket)
+├── scratch/              # Demo seeding scripts (seed_demo.ts)
+└── data/                 # Local SQLite database (aura.db)
+```
+
+---
+
+
 ## What's inside
 
 ### 🧠 The brain (research-backed)
