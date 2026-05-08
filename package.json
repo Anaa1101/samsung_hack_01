@@ -12,6 +12,7 @@
     "learn": "tsx src/twin/learn.ts",
     "eval": "tsx src/eval/harness.ts",
     "inspect:audit": "node scripts/inspect-audit.mjs",
+    "seed:demo": "tsx scratch/seed_demo.ts",
     "tunnel": "ngrok http 3000",
     "edge:cases": "node scripts/edge-case-check.mjs"
   },
