@@ -2,668 +2,312 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#080810" />
-    <meta name="description" content="AURA is a proactive AI life assistant that anticipates your needs and manages your day — before you even ask." />
-    <title>AURA — The assistant that talks first</title>
-    <link rel="icon" href="/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#020205" />
+    <title>AURA // Proactive Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet" />
     <style>
-      /* ── Reset ── */
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html { scroll-behavior: smooth; }
+      :root {
+        --bg: #020205;
+        --accent: #8b5cf6;
+        --accent-muted: rgba(139, 92, 246, 0.2);
+        --fg: #f8fafc;
+        --fg-muted: #94a3b8;
+        --border: rgba(255, 255, 255, 0.06);
+        --mono: 'JetBrains Mono', monospace;
+        --sans: 'Plus Jakarta Sans', sans-serif;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        background: #080810;
-        color: #fff;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--sans);
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
-        line-height: 1.6;
+        line-height: 1.5;
       }
 
-      /* ── Tokens ── */
-      :root {
-        --violet: #7c3aed;
-        --violet-light: #a78bfa;
-        --violet-glow: rgba(124,58,237,0.35);
-        --border: rgba(255,255,255,0.08);
-        --surface: rgba(255,255,255,0.04);
-        --ink-1: rgba(255,255,255,0.85);
-        --ink-2: rgba(255,255,255,0.5);
-        --ink-3: rgba(255,255,255,0.28);
-        --mono: 'Space Mono', monospace;
-      }
-
-      /* ── Background ── */
-      body::before {
-        content: '';
+      /* Grid Background */
+      .bg-grid {
         position: fixed;
         inset: 0;
-        background:
-          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.22) 0%, transparent 70%),
-          radial-gradient(ellipse 40% 30% at 90% 80%, rgba(59,130,246,0.08) 0%, transparent 60%);
+        background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: radial-gradient(circle at 50% 50%, black, transparent 80%);
         pointer-events: none;
         z-index: 0;
       }
 
-      /* ── Layout ── */
-      .container { max-width: 1080px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+      .container { max-width: 1200px; margin: 0 auto; padding: 0 40px; position: relative; z-index: 1; }
 
-      /* ── Nav ── */
-      nav {
-        position: sticky;
-        top: 0;
-        z-index: 100;
-        backdrop-filter: blur(20px) saturate(140%);
-        -webkit-backdrop-filter: blur(20px) saturate(140%);
-        border-bottom: 1px solid var(--border);
-        background: rgba(8,8,16,0.7);
-      }
-      .nav-inner {
+      header {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        height: 58px;
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: 0 28px;
+        align-items: center;
+        padding: 32px 0;
       }
-      .wordmark {
+      .logo {
         font-family: var(--mono);
-        font-weight: 700;
+        font-weight: 800;
+        font-size: 18px;
+        letter-spacing: -0.05em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .logo::before {
+        content: '';
+        width: 12px;
+        height: 12px;
+        background: var(--accent);
+        border-radius: 2px;
+        box-shadow: 0 0 10px var(--accent);
+      }
+      nav a {
+        color: var(--fg-muted);
+        text-decoration: none;
         font-size: 14px;
-        letter-spacing: 0.3em;
-        color: #fff;
-        text-decoration: none;
-      }
-      .nav-links { display: flex; align-items: center; gap: 8px; }
-      .nav-links a {
-        color: var(--ink-2);
-        text-decoration: none;
-        font-size: 13px;
         font-weight: 500;
-        padding: 6px 14px;
-        border-radius: 99px;
-        transition: color 0.15s, background 0.15s;
+        margin-left: 32px;
+        transition: color 0.2s;
       }
-      .nav-links a:hover { color: #fff; background: var(--surface); }
-      .nav-cta {
-        background: var(--violet);
-        color: #fff !important;
-        box-shadow: 0 2px 12px var(--violet-glow);
-      }
-      .nav-cta:hover { opacity: 0.9; background: var(--violet) !important; }
+      nav a:hover { color: var(--fg); }
 
-      /* ── Hero ── */
       .hero {
-        padding: 100px 0 80px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 24px;
+        padding: 120px 0 160px;
+        max-width: 800px;
       }
-
-      .hero-eyebrow {
+      .kicker {
         font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.2em;
+        color: var(--accent);
+        font-size: 13px;
         text-transform: uppercase;
-        color: var(--violet-light);
-        background: rgba(124,58,237,0.1);
-        border: 1px solid rgba(124,58,237,0.25);
-        padding: 5px 14px;
-        border-radius: 99px;
-      }
-
-      /* Orb */
-      .hero-orb {
-        width: 160px;
-        height: 160px;
-        border-radius: 50%;
-        position: relative;
-        background:
-          radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55) 0%, transparent 38%),
-          radial-gradient(circle at 68% 72%, rgba(124,58,237,0.9) 0%, rgba(76,29,149,1) 60%, rgba(15,10,30,1) 100%);
-        box-shadow:
-          0 0 60px rgba(124,58,237,0.45),
-          0 0 120px rgba(124,58,237,0.2),
-          0 30px 80px rgba(0,0,0,0.5),
-          inset 0 1px 0 rgba(255,255,255,0.2);
-        animation: orb-float 7s ease-in-out infinite;
-      }
-      .hero-orb::before {
-        content: '';
-        position: absolute;
-        inset: -20px;
-        border-radius: 50%;
-        border: 1px solid rgba(124,58,237,0.15);
-        animation: orbit 12s linear infinite;
-      }
-      .hero-orb::after {
-        content: '';
-        position: absolute;
-        top: -20px; left: calc(50% - 4px);
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        background: var(--violet-light);
-        box-shadow: 0 0 12px var(--violet-light);
-        animation: orbit 12s linear infinite;
-      }
-      @keyframes orb-float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-14px); }
-      }
-      @keyframes orbit {
-        from { transform: rotate(0deg) translateX(20px) rotate(0deg); }
-        to { transform: rotate(360deg) translateX(20px) rotate(-360deg); }
-      }
-
-      .hero h1 {
-        font-size: clamp(36px, 6vw, 64px);
-        font-weight: 700;
-        line-height: 1.08;
-        letter-spacing: -0.03em;
-        color: #fff;
-        max-width: 700px;
-      }
-      .hero h1 em {
-        font-style: normal;
-        background: linear-gradient(135deg, var(--violet-light) 0%, #818cf8 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-      }
-
-      .hero-sub {
-        font-size: 17px;
-        line-height: 1.6;
-        color: var(--ink-2);
-        max-width: 520px;
-      }
-
-      .hero-ctas {
+        letter-spacing: 0.1em;
+        margin-bottom: 24px;
         display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 8px;
-      }
-
-      .btn-primary {
-        display: inline-flex;
         align-items: center;
-        gap: 7px;
-        height: 48px;
-        padding: 0 24px;
-        background: var(--violet);
-        color: #fff;
-        border-radius: 99px;
-        font-size: 14px;
-        font-weight: 600;
-        text-decoration: none;
-        transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.15s;
-        box-shadow: 0 4px 20px var(--violet-glow);
-        letter-spacing: -0.01em;
+        gap: 12px;
       }
-      .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--violet-glow); }
-      .btn-primary:active { transform: scale(0.97); }
+      .kicker::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-      .btn-ghost {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        height: 48px;
-        padding: 0 22px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        color: var(--ink-1);
-        border-radius: 99px;
-        font-size: 14px;
-        font-weight: 500;
-        text-decoration: none;
-        transition: background 0.15s, border-color 0.15s;
-        letter-spacing: -0.01em;
-      }
-      .btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
-
-      /* ── Divider ── */
-      .divider {
-        height: 1px;
-        background: var(--border);
-        margin: 0;
-      }
-
-      /* ── Stats strip ── */
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        overflow: hidden;
-        margin: 60px 0;
-        background: var(--surface);
-      }
-      .stat {
-        padding: 32px 28px;
-        border-right: 1px solid var(--border);
-        position: relative;
-      }
-      .stat:last-child { border-right: none; }
-      .stat-num {
-        font-size: 44px;
-        font-weight: 700;
+      h1 {
+        font-size: 80px;
+        font-weight: 800;
+        line-height: 0.95;
         letter-spacing: -0.04em;
-        background: linear-gradient(135deg, var(--violet-light), #818cf8);
-        -webkit-background-clip: text;
-        background-clip: text;
+        margin-bottom: 32px;
+      }
+      h1 span {
+        display: block;
         color: transparent;
+        -webkit-text-stroke: 1px var(--fg);
+        opacity: 0.5;
+      }
+
+      .hero-p {
+        font-size: 20px;
+        color: var(--fg-muted);
+        max-width: 540px;
+        margin-bottom: 48px;
+        font-weight: 300;
+      }
+
+      .cta-group { display: flex; gap: 16px; }
+      .btn {
+        padding: 16px 32px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        transition: all 0.2s;
+        font-family: var(--mono);
+      }
+      .btn-primary {
+        background: var(--fg);
+        color: var(--bg);
+      }
+      .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); }
+      .btn-secondary {
+        border: 1px solid var(--border);
+        color: var(--fg);
+        background: rgba(255,255,255,0.02);
+      }
+      .btn-secondary:hover { background: var(--border); }
+
+      /* Technical Feed Mockup */
+      .feed-wrap {
+        position: absolute;
+        right: 0;
+        top: 200px;
+        width: 400px;
+        display: none;
+      }
+      @media (min-width: 1024px) { .feed-wrap { display: block; } }
+
+      .terminal {
+        background: rgba(10, 10, 15, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px;
+        font-family: var(--mono);
+        font-size: 12px;
+        box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+        backdrop-filter: blur(10px);
+      }
+      .t-header { color: var(--fg-muted); margin-bottom: 12px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+      .t-line { margin-bottom: 4px; display: flex; gap: 12px; }
+      .t-time { color: var(--accent); opacity: 0.6; }
+      .t-msg { color: var(--fg-muted); }
+      .t-alert { color: #facc15; }
+
+      /* Features - Technical Layout */
+      .section-meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 80px;
+        margin-bottom: 160px;
+      }
+      .meta-box h3 {
+        font-family: var(--mono);
+        font-size: 14px;
+        color: var(--accent);
+        margin-bottom: 16px;
+        text-transform: uppercase;
+      }
+      .meta-box p { font-size: 15px; color: var(--fg-muted); line-height: 1.6; }
+
+      .big-stat {
+        font-size: 120px;
+        font-weight: 800;
+        letter-spacing: -0.06em;
         line-height: 1;
-        margin-bottom: 6px;
-      }
-      .stat-label {
-        font-size: 13px;
-        color: var(--ink-2);
-        font-weight: 500;
-      }
-      .stat-sub {
-        font-size: 11px;
-        color: var(--ink-3);
-        margin-top: 4px;
-        font-family: var(--mono);
-        letter-spacing: 0.03em;
-      }
-
-      /* ── Section heading ── */
-      .section-label {
-        font-family: var(--mono);
-        font-size: 11px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--violet-light);
-        margin-bottom: 12px;
-      }
-      .section-heading {
-        font-size: clamp(22px, 3vw, 32px);
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        color: #fff;
-        margin-bottom: 16px;
-        line-height: 1.15;
-      }
-      .section-sub {
-        font-size: 15px;
-        color: var(--ink-2);
-        max-width: 500px;
-        line-height: 1.65;
-      }
-
-      /* ── Feature cards ── */
-      .features { margin: 80px 0; }
-      .features-header { margin-bottom: 40px; }
-
-      .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
-      }
-      .feature-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 28px;
-        transition: border-color 0.2s, transform 0.2s;
-        position: relative;
-        overflow: hidden;
-      }
-      .feature-card:hover {
-        border-color: rgba(124,58,237,0.35);
-        transform: translateY(-2px);
-      }
-      .feature-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(124,58,237,0.4), transparent);
-        opacity: 0;
-        transition: opacity 0.2s;
-      }
-      .feature-card:hover::before { opacity: 1; }
-      .feature-icon {
-        font-size: 24px;
-        margin-bottom: 16px;
-        display: block;
-      }
-      .feature-card h3 {
-        font-size: 15px;
-        font-weight: 600;
-        color: #fff;
-        margin-bottom: 8px;
-        letter-spacing: -0.01em;
-      }
-      .feature-card p {
-        font-size: 13px;
-        color: var(--ink-2);
-        line-height: 1.6;
-      }
-
-      /* ── Problem / Solution split ── */
-      .split { margin: 80px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-
-      .split-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 32px;
-      }
-      .split-card.accent { border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.06); }
-      .split-card h3 {
-        font-size: 11px;
-        font-family: var(--mono);
-        letter-spacing: 0.15em;
-        text-transform: uppercase;
-        color: var(--violet-light);
-        margin-bottom: 14px;
-      }
-      .split-card p { font-size: 15px; color: var(--ink-1); line-height: 1.65; }
-
-      /* ── Tech stack ── */
-      .stack { margin: 80px 0; }
-      .stack-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-        margin-top: 32px;
-      }
-      .stack-item {
+        margin-bottom: 120px;
         display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 16px 18px;
-      }
-      .stack-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--violet-light);
-        box-shadow: 0 0 8px var(--violet-glow);
-        margin-top: 7px;
-        flex-shrink: 0;
-      }
-      .stack-item strong {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        color: #fff;
-        margin-bottom: 2px;
-      }
-      .stack-item span { font-size: 12px; color: var(--ink-2); }
-
-      /* ── Quote ── */
-      .blockquote {
-        margin: 80px 0;
-        text-align: center;
-        padding: 56px 40px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 24px;
-        position: relative;
-        overflow: hidden;
-      }
-      .blockquote::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--violet-light), transparent);
-      }
-      .blockquote p {
-        font-size: clamp(18px, 2.5vw, 24px);
-        font-weight: 500;
-        color: var(--ink-1);
-        line-height: 1.5;
-        letter-spacing: -0.01em;
-        max-width: 640px;
-        margin: 0 auto;
-      }
-      .blockquote p em { font-style: normal; color: var(--violet-light); font-weight: 600; }
-
-      /* ── CTA section ── */
-      .cta-section {
-        margin: 80px 0;
-        text-align: center;
-        padding: 72px 40px;
-        background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(99,102,241,0.08));
-        border: 1px solid rgba(124,58,237,0.2);
-        border-radius: 28px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        align-items: flex-end;
         gap: 20px;
       }
-      .cta-section h2 {
-        font-size: clamp(24px, 4vw, 40px);
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        color: #fff;
-        max-width: 500px;
-      }
-      .cta-section p { font-size: 15px; color: var(--ink-2); max-width: 400px; }
+      .big-stat span { font-size: 20px; font-weight: 600; color: var(--accent); letter-spacing: 0; margin-bottom: 15px; }
 
-      /* ── Footer ── */
+      /* Grid Features */
+      .tech-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        margin-bottom: 160px;
+      }
+      .tech-item {
+        background: var(--bg);
+        padding: 60px 40px;
+        transition: background 0.3s;
+      }
+      .tech-item:hover { background: rgba(139, 92, 246, 0.03); }
+      .tech-id { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 24px; opacity: 0.5; }
+      .tech-item h4 { font-size: 24px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em; }
+      .tech-item p { font-size: 15px; color: var(--fg-muted); line-height: 1.6; }
+
       footer {
         border-top: 1px solid var(--border);
-        padding: 28px 0;
-        text-align: center;
-        font-size: 12px;
-        color: var(--ink-3);
+        padding: 60px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         font-family: var(--mono);
-        letter-spacing: 0.05em;
-        position: relative;
-        z-index: 1;
+        font-size: 12px;
+        color: var(--fg-muted);
       }
 
-      /* ── Responsive ── */
       @media (max-width: 768px) {
-        .feature-grid { grid-template-columns: 1fr; }
-        .split { grid-template-columns: 1fr; }
-        .stats { grid-template-columns: 1fr; }
-        .stat { border-right: none; border-bottom: 1px solid var(--border); }
-        .stat:last-child { border-bottom: none; }
-        .stack-grid { grid-template-columns: 1fr; }
-        .hero h1 { font-size: 32px; }
-        .hero-orb { width: 120px; height: 120px; }
-        .cta-section { padding: 48px 24px; }
-        .blockquote { padding: 40px 24px; }
+        h1 { font-size: 48px; }
+        .section-meta { grid-template-columns: 1fr; gap: 40px; }
+        .big-stat { font-size: 64px; }
       }
     </style>
   </head>
   <body>
-
-    <!-- Navigation -->
-    <nav>
-      <div class="nav-inner">
-        <a href="/" class="wordmark">AURA</a>
-        <div class="nav-links">
-          <a href="/activity">Activity</a>
-          <a href="/dev">Dev</a>
-          <a href="/simple" class="nav-cta">Launch App →</a>
-        </div>
-      </div>
-    </nav>
-
-    <!-- Hero -->
+    <div class="bg-grid"></div>
     <div class="container">
-      <section class="hero">
-        <span class="hero-eyebrow">Samsung PRISM · 2026</span>
-        <div class="hero-orb"></div>
-        <h1>The assistant that<br/><em>talks first.</em></h1>
-        <p class="hero-sub">
-          AURA watches your calendar, biometrics, and context — then decides when staying silent
-          is worse than speaking up. No prompts required.
-        </p>
-        <div class="hero-ctas">
-          <a href="/simple" class="btn-primary">Launch AURA →</a>
-          <a href="/activity" class="btn-ghost">View activity</a>
-        </div>
-      </section>
+      <header>
+        <div class="logo">AURA SYSTEM</div>
+        <nav>
+          <a href="/activity">AUDIT LOG</a>
+          <a href="/simple" style="color: var(--fg)">LAUNCH INSTANCE</a>
+        </nav>
+      </header>
 
-      <!-- Stats -->
-      <div class="stats">
-        <div class="stat">
-          <div class="stat-num">85%</div>
-          <div class="stat-label">Fewer interruptions</div>
-          <div class="stat-sub">vs. always-speak baselines</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num">+105%</div>
-          <div class="stat-label">F1 score improvement</div>
-          <div class="stat-sub">precision + recall together</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num">100%</div>
-          <div class="stat-label">On-device</div>
-          <div class="stat-sub">no cloud round-trips</div>
-        </div>
-      </div>
-
-      <!-- Problem / Solution -->
-      <div class="split">
-        <div class="split-card">
-          <h3>The Problem</h3>
-          <p>
-            Modern phones bombard you with notifications. Modern assistants do the opposite —
-            they stay silent until you explicitly wake them. Both extremes are broken. You're either
-            drowning in noise or getting no help when you actually need it.
+      <main>
+        <section class="hero">
+          <div class="kicker">Samsung PRISM // OpenClaw 2026</div>
+          <h1>
+            <span>SILENCE IS</span>
+            A FEATURE.
+          </h1>
+          <p class="hero-p">
+            Most assistants wait. AURA acts. A proactive intelligence layer that computes social burden vs. utility in real-time. On-device. Always.
           </p>
-        </div>
-        <div class="split-card accent">
-          <h3>The Solution</h3>
-          <p>
-            AURA computes the cost of staying silent against the burden of speaking on every
-            potential nudge. It speaks only when the math says silence would be worse.
-            Every decision is logged and inspectable.
-          </p>
-        </div>
-      </div>
+          <div class="cta-group">
+            <a href="/simple" class="btn btn-primary">INITIALIZE AURA</a>
+            <a href="https://github.com/Anaa1101/samsung_hack_01" class="btn btn-secondary">SOURCE CORE</a>
+          </div>
+        </section>
 
-      <!-- Features -->
-      <div class="features">
-        <div class="features-header">
-          <div class="section-label">Capabilities</div>
-          <div class="section-heading">Built for your full day</div>
-          <p class="section-sub">AURA integrates with your context across devices and surfaces — without sending anything to the cloud.</p>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <span class="feature-icon">📅</span>
-            <h3>Watches your day</h3>
-            <p>Calendar, sleep, steps, weather, location, and notification load — fused into a live Day-Readiness Score.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">🧠</span>
-            <h3>Decision-theoretic gate</h3>
-            <p>The PRISM 2026 framework evaluates every potential nudge against a festina lente cost model before speaking.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">🛡</span>
-            <h3>Two-AI safety</h3>
-            <p>An adversary critic runs in parallel and vetoes any nudge it deems harmful. Shadow AURA handles borderline cases.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">🗣</span>
-            <h3>Multilingual voice</h3>
-            <p>Speaks English, हिन्दी, and ಕನ್ನಡ. Voice in, voice out. "Hey AURA" wake word is optional.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">💾</span>
-            <h3>Persistent memory</h3>
-            <p>Retains conversation context across sessions. AURA remembers what you discussed yesterday and builds on it.</p>
-          </div>
-          <div class="feature-card">
-            <span class="feature-icon">🔍</span>
-            <h3>Full audit trail</h3>
-            <p>Every decision is HMAC-chained and logged. You can inspect exactly why AURA chose to speak — or not.</p>
+        <div class="feed-wrap">
+          <div class="terminal">
+            <div class="t-header">
+              <span>ACTIVE_LOG v2.0.4</span>
+              <span>● LIVE</span>
+            </div>
+            <div class="t-line"><span class="t-time">14:02:11</span> <span class="t-msg">Context: User heart rate elevated</span></div>
+            <div class="t-line"><span class="t-time">14:02:12</span> <span class="t-msg">Query: Potential cortisol spike?</span></div>
+            <div class="t-line"><span class="t-time">14:02:14</span> <span class="t-msg">Result: Nudge suppress (Focus mode)</span></div>
+            <div class="t-line"><span class="t-time">14:05:01</span> <span class="t-msg">Event: Calendar conflict detected</span></div>
+            <div class="t-line"><span class="t-time">14:05:03</span> <span class="t-alert">Decision: PROACTIVE_INTERRUPTION</span></div>
+            <div class="t-line"><span class="t-time">14:05:04</span> <span class="t-msg">Action: Synthetic voice synthesized</span></div>
           </div>
         </div>
-      </div>
 
-      <!-- Quote -->
-      <div class="blockquote">
-        <p>"We use code to think. We use the LLM to <em>communicate</em>."</p>
-      </div>
-
-      <!-- Tech Stack -->
-      <div class="stack">
-        <div class="section-label">Architecture</div>
-        <div class="section-heading">Built on solid foundations</div>
-        <div class="stack-grid">
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>PRISM Decision Gate</strong>
-              <span>2026 decision-theoretic festina lente framework</span>
-            </div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>Edge-PRISM</strong>
-              <span>On-device acceptance calibration — no cloud</span>
-            </div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>Adversary Critic</strong>
-              <span>Always-on veto layer running in parallel</span>
-            </div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>Shadow AURA</strong>
-              <span>Slow-mode counterfactual review for borderline cases</span>
-            </div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>HMAC Audit Chain</strong>
-              <span>Cryptographically chained, inspectable decision trail</span>
-            </div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-dot"></div>
-            <div>
-              <strong>Local LLM via Ollama</strong>
-              <span>Or Samsung Neural SDK — fully on-device inference</span>
-            </div>
-          </div>
+        <div class="big-stat">
+          85% <span>REDUCTION IN<br/>DIGITAL NOISE</span>
         </div>
-      </div>
 
-      <!-- CTA -->
-      <div class="cta-section">
-        <h2>Ready to meet your digital twin?</h2>
-        <p>AURA is running locally. No sign-up, no cloud, no waiting.</p>
-        <div class="hero-ctas">
-          <a href="/simple" class="btn-primary">Open the app →</a>
-          <a href="/dev" class="btn-ghost">See every decision</a>
-        </div>
-      </div>
+        <section class="section-meta">
+          <div class="meta-box">
+            <h3>01 // THE MANDATE</h3>
+            <p>AURA is not a chatbot. It is a decision-theoretic engine designed to solve the notification paradox. It operates on the principle that every interaction has a cost, and silence is often the optimal strategy.</p>
+          </div>
+          <div class="meta-box">
+            <h3>02 // THE PRIVACY</h3>
+            <p>Inference happens at the edge. No telemetry, no cloud round-trips, no data leaks. Your life stays on your hardware. Built for the Samsung Neural SDK.</p>
+          </div>
+        </section>
 
-    </div><!-- /container -->
+        <section class="tech-grid">
+          <div class="tech-item">
+            <div class="tech-id">MOD_01</div>
+            <h4>PRISM Gate</h4>
+            <p>A Bayesian cost-benefit analysis engine that evaluates if an interruption is worth the user's cognitive load.</p>
+          </div>
+          <div class="tech-item">
+            <div class="tech-id">MOD_02</div>
+            <h4>Adversary Critic</h4>
+            <p>A parallel LLM layer that attempts to veto every decision, ensuring safety and relevance before a single word is spoken.</p>
+          </div>
+          <div class="tech-item">
+            <div class="tech-id">MOD_03</div>
+            <h4>HMAC Chain</h4>
+            <p>Every decision is cryptographically chained, creating an immutable audit trail for complete accountability.</p>
+          </div>
+        </section>
+      </main>
 
-    <footer>
-      Built for Samsung PRISM OpenClaw Hackathon · 2026
-    </footer>
-
+      <footer>
+        <div>SAMSUNG PRISM // AURA 2026</div>
+        <div>[ STATUS: NOMINAL ]</div>
+      </footer>
+    </div>
   </body>
 </html>
